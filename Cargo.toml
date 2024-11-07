@@ -1,0 +1,29 @@
+[package]
+authors = ["Tryggvi Larusson <Tryggvi.Larusson@netapp.com>"]
+edition = "2021"
+name = "smb-js"
+version = "0.2.0"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+bytes = "1.8.0"
+libsmb2-rs = { version = "0.1.2", path = "./libsmb2-rs" }
+mime_guess = "2.0.4"
+napi = { version = "~2.16.13" , default-features = false, features = [
+  "napi8",
+  "async",
+  "latin1",
+] }
+napi-derive = { version = "~2.16.12" }
+nix = { version = "0.29.0", features = ["fs"] }
+send_wrapper = "0.6.0"
+serde_json = "1.0.132"
+url = "2.5.3"
+
+[build-dependencies]
+napi-build = "2"
+
+[profile.release]
+lto = true

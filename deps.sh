@@ -1,0 +1,94 @@
+#!/bin/bash
+
+set -e
+
+if ! command -v git 2>&1 >/dev/null ; then
+    if command -v brew 2>&1 >/dev/null ; then
+        brew install git
+    elif command -v apt-get 2>&1 >/dev/null ; then
+        sudo apt-get update
+        sudo apt-get install -y git-all
+    else
+        echo "please install git"
+    fi
+fi
+
+if ! command -v cargo 2>&1 >/dev/null ; then
+    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+fi
+
+if ! command -v automake 2>&1 >/dev/null ; then
+    if command -v brew 2>&1 >/dev/null ; then
+        brew install automake
+    elif command -v apt-get 2>&1 >/dev/null ; then
+        sudo apt-get update
+        sudo apt-get install -y automake
+    else
+        echo "please install automake"
+    fi
+fi
+
+OS=`uname -s`
+if [ "${OS}" == "Darwin" ]; then
+    if ! command -v glibtool 2>&1 >/dev/null ; then
+        if command -v brew 2>&1 >/dev/null ; then
+            brew install libtool
+        fi
+    fi
+elif [ "${OS}" == "Linux" ]; then
+    if ! command -v make 2>&1 >/dev/null ; then
+        if command -v apt-get 2>&1 >/dev/null ; then
+            sudo apt-get update
+            sudo apt-get install -y make
+        else
+            echo "please install make"
+        fi
+    fi
+    if ! command -v node 2>&1 >/dev/null ; then
+        if command -v apt-get 2>&1 >/dev/null ; then
+            sudo apt-get update
+            curl -sL https://deb.nodesource.com/setup_22.x -o /tmp/nodesource_setup.sh
+            chmod 775 /tmp/nodesource_setup.sh
+            sudo /tmp/nodesource_setup.sh
+            sudo apt-get install nodejs -y
+        else
+            echo "please install node"
+        fi
+    fi
+    if ! command -v clang 2>&1 >/dev/null ; then
+        if command -v apt-get 2>&1 >/dev/null ; then
+            sudo apt-get update
+            sudo apt-get install -y clang
+        else
+            echo "please install clang"
+        fi
+    fi
+    if ! command -v yarn 2>&1 >/dev/null ; then
+        sudo npm install -g yarn
+    fi
+    if ! command -v libtoolize 2>&1 >/dev/null ; then
+        if command -v apt-get 2>&1 >/dev/null ; then
+            sudo apt-get update
+            sudo apt-get install -y libtool
+        else
+            echo "please install libtool"
+        fi
+    fi
+fi
+
+
+if [ ! -d libsmb2 ]; then
+    git clone https://github.com/sahlberg/libsmb2.git libsmb2
+    if [ ! -f libsmb2/local-install/lib/libsmb2.a ]; then
+        pushd libsmb2
+        CURDIR="$(pwd)"
+        INSTALL_DIR="${CURDIR}/local-install"
+        mkdir -p "${INSTALL_DIR}"
+        chmod 775 ./bootstrap
+        ./bootstrap
+        ./configure --without-libkrb5 --prefix="${INSTALL_DIR}" --exec-prefix="${INSTALL_DIR}" CFLAGS='-fPIC -Wno-cast-align'
+        make
+        make install
+        popd
+    fi
+fi

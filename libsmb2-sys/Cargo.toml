@@ -1,0 +1,20 @@
+[package]
+name = "libsmb2-sys"
+description = "libsmb2 bindings allow you to create smb2 mounts in memory/userspace"
+version = "0.2.0"
+authors = ["Tryggvi Larusson <tryggvi.larusson@netapp.com>"]
+homepage = "https://github.com/NetAppLabs/libsmb2-sys"
+repository = "https://github.com/NetAppLabs/libsmb2-sys"
+documentation = "https://docs.rs/libsmb2-sys"
+license = "MIT"
+readme = "README.md"
+keywords = ["smb2"]
+categories = ["api-bindings", "network-programming", "filesystem", "external-ffi-bindings"]
+
+[lib]
+crate-type = ["rlib"]
+
+[build-dependencies]
+bindgen = "~0.70.1"
+
+[dependencies]
