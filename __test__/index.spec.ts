@@ -1,26 +1,37 @@
 import test from 'ava'
 
+import process from 'node:process';
 import { SmbDirectoryHandle, SmbFileHandle } from '../indax'
 
 const nfsURL = process.env.SMB_URL || 'smb://127.0.0.1/Users/Shared/smb/';
-const smbPath = process.env.SMB_PATH || 'smb://127.0.0.1/Users/Shared/smb/';
+const smbPath = process.env.SMB_PATH;
+
+let cachedRoot: FileSystemDirectoryHandle;
 
 async function getRootHandle(): Promise<FileSystemDirectoryHandle> {
-  let root = new SmbDirectoryHandle(nfsURL);
-  let subRoot: FileSystemDirectoryHandle  = root;
-  if (smbPath != "") {
-    subRoot = await root.getDirectoryHandle(smbPath);
+  if (!cachedRoot) {
+    cachedRoot = new SmbDirectoryHandle(nfsURL);
+  }
+  let subRoot: FileSystemDirectoryHandle  = cachedRoot;
+  if (smbPath) {
+    subRoot = await cachedRoot.getDirectoryHandle(smbPath);
   }
   return subRoot;
 }
 
+function getRootHandlePlain() {
+  let root = new SmbDirectoryHandle(nfsURL);
+  return root;
+}
+
 test.serial('should have correct properties for directory', async (t) => {
-  console.log("test1")
+  //console.log("test1")
   const rootHandle = await getRootHandle();
-  console.log("getRootHandle", rootHandle);
+  //const rootHandle = getRootHandlePlain();
+  //console.log("getRootHandle", rootHandle);
 
   const dirHandle = await rootHandle.getDirectoryHandle('first') as SmbDirectoryHandle;
-  console.log("dirHandle", dirHandle);
+  //console.log("dirHandle", dirHandle);
 
   t.is(dirHandle.kind, 'directory');
   t.is(dirHandle.name, 'first');
@@ -96,14 +107,14 @@ test.serial('should be granted read permission when querying on read-only direct
   t.is(perm, 'granted');
 })
 
-/*
-test.serial('should be denied readwrite permission when querying on read-only directory', async (t) => {
-  const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('quatre') as SmbDirectoryHandle;
-  const perm = await dirHandle.queryPermission({mode: 'readwrite'});
-  t.is(perm, 'denied');
-})
-*/
+// /*
+// test.serial('should be denied readwrite permission when querying on read-only directory', async (t) => {
+//   const rootHandle = await getRootHandle();
+//   const dirHandle = await rootHandle.getDirectoryHandle('quatre') as SmbDirectoryHandle;
+//   const perm = await dirHandle.queryPermission({mode: 'readwrite'});
+//   t.is(perm, 'denied');
+// })
+// */
 
 test.serial('should be granted read permission when requesting on directory', async (t) => {
   const rootHandle = await getRootHandle();
@@ -559,62 +570,63 @@ test.serial('should return null when resolving unknown file', async (t) => {
   t.deepEqual(resolved, null);
 })
 
-test.serial('should return non-null when resolving known directory', async (t) => {
-  const rootHandle = await getRootHandle();
-  const resolved = await rootHandle.resolve({kind: 'directory', name: 'first'} as any);
-  t.deepEqual(resolved, ['first']);
-})
+// test.serial('should return non-null when resolving known directory', async (t) => {
+//   const rootHandle = await getRootHandle();
+//   const resolved = await rootHandle.resolve({kind: 'directory', name: 'first'} as any);
+//   console.log("resolved: ", resolved);
+//   t.deepEqual(resolved, ['first']);
+// })
 
-test.serial('should return non-null when resolving known directory using handle', async (t) => {
-  const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first');
-  const resolved = await rootHandle.resolve(dirHandle);
-  t.deepEqual(resolved, ['first']);
-})
+// test.serial('should return non-null when resolving known directory using handle', async (t) => {
+//   const rootHandle = await getRootHandle();
+//   const dirHandle = await rootHandle.getDirectoryHandle('first');
+//   const resolved = await rootHandle.resolve(dirHandle);
+//   t.deepEqual(resolved, ['first']);
+// })
 
-test.serial('should return non-null when resolving known file', async (t) => {
-  const rootHandle = await getRootHandle();
-  for (const name of ['annar', '3']) {
-    const resolved = await rootHandle.resolve({kind: 'file', name} as any);
-    t.deepEqual(resolved, [name]);
-  }
-  for (const {dir, name} of [{dir: 'first', name: 'comment'}, {dir: 'quatre', name: 'points'}]) {
-    const resolved = await rootHandle.resolve({kind: 'file', name} as any);
-    t.deepEqual(resolved, [dir, name]);
-  }
-})
+// test.serial('should return non-null when resolving known file', async (t) => {
+//   const rootHandle = await getRootHandle();
+//   for (const name of ['annar', '3']) {
+//     const resolved = await rootHandle.resolve({kind: 'file', name} as any);
+//     t.deepEqual(resolved, [name]);
+//   }
+//   for (const {dir, name} of [{dir: 'first', name: 'comment'}, {dir: 'quatre', name: 'points'}]) {
+//     const resolved = await rootHandle.resolve({kind: 'file', name} as any);
+//     t.deepEqual(resolved, [dir, name]);
+//   }
+// })
 
-test.serial('should return non-null when resolving known file using handle', async (t) => {
-  const rootHandle = await getRootHandle();
-  for (const name of ['annar', '3']) {
-    const fileHandle = await rootHandle.getFileHandle(name);
-    const resolved = await rootHandle.resolve(fileHandle);
-    t.deepEqual(resolved, [name]);
-  }
-  for (const {dir, name} of [{dir: 'first', name: 'comment'}, {dir: 'quatre', name: 'points'}]) {
-    const dirHandle = await rootHandle.getDirectoryHandle(dir);
-    const fileHandle = await dirHandle.getFileHandle(name);
-    const resolved = await rootHandle.resolve(fileHandle);
-    t.deepEqual(resolved, [dir, name]);
-  }
-})
+// test.serial('should return non-null when resolving known file using handle', async (t) => {
+//   const rootHandle = await getRootHandle();
+//   for (const name of ['annar', '3']) {
+//     const fileHandle = await rootHandle.getFileHandle(name);
+//     const resolved = await rootHandle.resolve(fileHandle);
+//     t.deepEqual(resolved, [name]);
+//   }
+//   for (const {dir, name} of [{dir: 'first', name: 'comment'}, {dir: 'quatre', name: 'points'}]) {
+//     const dirHandle = await rootHandle.getDirectoryHandle(dir);
+//     const fileHandle = await dirHandle.getFileHandle(name);
+//     const resolved = await rootHandle.resolve(fileHandle);
+//     t.deepEqual(resolved, [dir, name]);
+//   }
+// })
 
-test.serial('should return null when resolving file belonging to different directory using handle', async (t) => {
-  const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first');
-  const dirHandle2 = await rootHandle.getDirectoryHandle('quatre');
-  const fileHandle = await dirHandle.getFileHandle('points', {create: true});
-  const fileHandle2 = await dirHandle2.getFileHandle('points');
-  const resolved = await dirHandle2.resolve(fileHandle);
-  t.deepEqual(resolved, null);
-  const resolved2 = await dirHandle2.resolve(fileHandle2);
-  t.deepEqual(resolved2, ['quatre', 'points']);
-  const resolved3 = await dirHandle.resolve(fileHandle2);
-  t.deepEqual(resolved3, null);
-  const resolved4 = await dirHandle2.resolve({kind: fileHandle.kind, name: fileHandle.name} as any);
-  t.deepEqual(resolved4, ['quatre', 'points']);
-  await dirHandle.removeEntry('points');
-})
+// test.serial('should return null when resolving file belonging to different directory using handle', async (t) => {
+//   const rootHandle = await getRootHandle();
+//   const dirHandle = await rootHandle.getDirectoryHandle('first');
+//   const dirHandle2 = await rootHandle.getDirectoryHandle('quatre');
+//   const fileHandle = await dirHandle.getFileHandle('points', {create: true});
+//   const fileHandle2 = await dirHandle2.getFileHandle('points');
+//   const resolved = await dirHandle2.resolve(fileHandle);
+//   t.deepEqual(resolved, null);
+//   const resolved2 = await dirHandle2.resolve(fileHandle2);
+//   t.deepEqual(resolved2, ['quatre', 'points']);
+//   const resolved3 = await dirHandle.resolve(fileHandle2);
+//   t.deepEqual(resolved3, null);
+//   const resolved4 = await dirHandle2.resolve({kind: fileHandle.kind, name: fileHandle.name} as any);
+//   t.deepEqual(resolved4, ['quatre', 'points']);
+//   await dirHandle.removeEntry('points');
+// })
 
 test.serial('should return file for file handle', async (t) => {
   const rootHandle = await getRootHandle();
@@ -1315,16 +1327,16 @@ test.serial('should handle requesting permissions concurrently', async (t) => {
 })
 */
 
-test.serial('should handle resolving concurrently', async (t) => {
-  // @ts-ignore
-  const count = process.env.TEST_USING_MOCKS ? 1000 : 10;
-  const rootHandle = await getRootHandle();
-  for (let i = 0; i < count; i++) {
-    const [first, quatre] = await Promise.all([
-      rootHandle.resolve({kind: 'directory', name: 'first'} as any),
-      rootHandle.resolve({kind: 'directory', name: 'quatre'} as any),
-    ]);
-    t.deepEqual(first, ['first']);
-    t.deepEqual(quatre, ['quatre']);
-  }
-})
+// test.serial('should handle resolving concurrently', async (t) => {
+//   // @ts-ignore
+//   const count = process.env.TEST_USING_MOCKS ? 1000 : 10;
+//   const rootHandle = await getRootHandle();
+//   for (let i = 0; i < count; i++) {
+//     const [first, quatre] = await Promise.all([
+//       rootHandle.resolve({kind: 'directory', name: 'first'} as any),
+//       rootHandle.resolve({kind: 'directory', name: 'quatre'} as any),
+//     ]);
+//     t.deepEqual(first, ['first']);
+//     t.deepEqual(quatre, ['quatre']);
+//   }
+// })

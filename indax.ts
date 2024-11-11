@@ -97,7 +97,7 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
     }
   }
   async getDirectoryHandle(name: string, options?: FileSystemGetDirectoryOptions): Promise<FileSystemDirectoryHandle> {
-    console.log("getDirectoryHandle: ", name);
+    //console.log("getDirectoryHandle: ", name);
     return new Promise(async (resolve, reject) => {
       await this._js.getDirectoryHandle(name, options as JsSmbGetDirectoryOptions)
         .then((handle) => resolve(new SmbDirectoryHandle(handle) as FileSystemDirectoryHandle))

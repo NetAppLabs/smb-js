@@ -310,7 +310,7 @@ impl Default for JsSmbCreateWritableOptions {
 #[derive(Clone)]
 #[napi]
 pub struct JsSmbHandle {
-  nfs: Option<Arc<RwLock<Box<dyn SMB>>>>,
+  smb: Option<Arc<RwLock<Box<dyn SMB>>>>,
   path: String,
   #[napi(readonly, ts_type="'directory' | 'file'")]
   pub kind: String,
@@ -321,8 +321,16 @@ pub struct JsSmbHandle {
 #[napi]
 impl JsSmbHandle {
 
-  pub fn open(url: String) -> Self {
-    Self{nfs: Some(Arc::new(RwLock::new(smb::connect(url)))), path: DIR_ROOT.into(), kind: KIND_DIRECTORY.into(), name: DIR_ROOT.into()}
+  pub fn open(url: String) -> Result<Self> {
+    let conn_res = smb::connect(url);
+    match conn_res {
+      Ok(conn) => {
+        return Ok(Self{smb: Some(Arc::new(RwLock::new(conn))), path: DIR_ROOT.into(), kind: KIND_DIRECTORY.into(), name: DIR_ROOT.into()});
+      },
+      Err(e) => {
+        return Err(e.into())
+      },
+    }
   }
 
   fn is_same(&self, other: &JsSmbHandle) -> bool {
@@ -336,15 +344,15 @@ impl JsSmbHandle {
 
   #[napi]
   pub async fn query_permission(&self, perm: JsSmbHandlePermissionDescriptor) -> Result<String> {
-    if let Some(nfs) = &self.nfs {
-      let my_nfs = nfs.write().unwrap();
-      let nfs_stat = my_nfs.stat64(self.path.as_str())?;
+    if let Some(nfs) = &self.smb {
+      let my_smb = nfs.write().unwrap();
+      let smb_stat = my_smb.stat64(self.path.as_str())?;
       let perm_u64 = perm.to_u64(self.kind.as_str());
       //if nfs_stat.mode & perm_u64 == perm_u64 {
         return Ok(PERM_STATE_GRANTED.into());
       //}
     }
-    if self.nfs.is_none() && ((self.name != "3" && self.name != "quatre") || perm.mode != PERM_READWRITE) {
+    if self.smb.is_none() && ((self.name != "3" && self.name != "quatre") || perm.mode != PERM_READWRITE) {
       return Ok(PERM_STATE_GRANTED.into());
     }
     Ok(PERM_STATE_DENIED.into())
@@ -352,15 +360,15 @@ impl JsSmbHandle {
 
   #[napi]
   pub async fn request_permission(&self, perm: JsSmbHandlePermissionDescriptor) -> Result<String> {
-    if let Some(nfs) = &self.nfs {
-      let my_nfs = nfs.write().unwrap();
-      let nfs_stat = my_nfs.stat64(self.path.as_str())?;
+    if let Some(nfs) = &self.smb {
+      let my_smb = nfs.write().unwrap();
+      let smb_stat = my_smb.stat64(self.path.as_str())?;
       let perm_u64 = perm.to_u64(self.kind.as_str());
       //if nfs_stat.mode & perm_u64 == perm_u64 {
         return Ok(PERM_STATE_GRANTED.into());
       //}
       //let mode = perm.to_mode(self.kind.as_str()).union(Mode::from_bits_truncate((nfs_stat.mode as u16).into()));
-      //if !my_nfs.lchmod(self.name.as_str(), mode.bits() as u32).is_ok() {
+      //if !my_smb.lchmod(self.name.as_str(), mode.bits() as u32).is_ok() {
       //  return Ok(PERM_STATE_DENIED.into());
       //}
     }
@@ -381,7 +389,7 @@ impl FromNapiValue for JsSmbHandle {
         let kind = obj.get::<&str, &str>(FIELD_KIND)?.unwrap_or_default().into();
         let name = obj.get::<&str, &str>(FIELD_NAME)?.unwrap_or_default().into();
         let path = obj.get::<&str, &str>(FIELD_PATH)?.unwrap_or_default().into();
-        Ok(Self{nfs: None, path, kind, name})
+        Ok(Self{smb: None, path, kind, name})
       },
       |handle| Ok(handle.to_owned())
     )
@@ -403,8 +411,16 @@ pub struct JsSmbDirectoryHandle {
 impl JsSmbDirectoryHandle {
 
   #[napi(constructor)]
-  pub fn open(url: String) -> Self {
-    JsSmbHandle::open(url).into()
+  pub fn open(url: String) -> Result<Self> {
+    let open_res = JsSmbHandle::open(url);
+    match open_res {
+      Ok(op) => {
+        return Ok(op.into());
+      },
+      Err(e) => {
+        return Err(e.into())
+      },
+    }
   }
 
   #[napi]
@@ -428,18 +444,15 @@ impl JsSmbDirectoryHandle {
   }
 
   fn nfs_entries(&self) -> Result<Vec<JsSmbHandle>> {
-    let nfs = &self.handle.nfs;
-    let mut my_nfs = nfs.as_ref().unwrap().write().unwrap();
-    self.nfs_entries_guarded(&mut my_nfs)
+    let smb = &self.handle.smb;
+    let mut my_smb = smb.as_ref().unwrap().write().unwrap();
+    self.nfs_entries_guarded(&mut my_smb)
   }
 
-  fn nfs_entries_guarded(&self, my_nfs: &mut RwLockWriteGuard<Box<dyn SMB>>) -> Result<Vec<JsSmbHandle>> {
+  fn nfs_entries_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn SMB>>) -> Result<Vec<JsSmbHandle>> {
     let mut entries = Vec::new();
     let mut path = self.handle.path.as_str();
-    if path == "/" {
-      path = "";
-    }
-    let dir = my_nfs.opendir(path)?;
+    let dir = my_smb.opendir(path)?;
     for entry in dir {
       if let Some(e) = entry.ok() {
         let name = e.path;
@@ -448,7 +461,7 @@ impl JsSmbDirectoryHandle {
           _ => (KIND_FILE.into(), format_file_path(&self.handle.path, &name))
         };
         if kind != KIND_DIRECTORY || (name != DIR_CURRENT && name != DIR_PARENT) {
-          entries.push(JsSmbHandle{nfs: self.handle.nfs.clone(), path, kind, name});
+          entries.push(JsSmbHandle{smb: self.handle.smb.clone(), path, kind, name});
         }
       }
     }
@@ -472,7 +485,7 @@ impl JsSmbDirectoryHandle {
 
   #[napi]
   pub async fn get_directory_handle(&self, name: String, #[napi(ts_arg_type="JsSmbGetDirectoryOptions")] options: Option<JsSmbGetDirectoryOptions>) -> Result<JsSmbDirectoryHandle> {
-    println!("get_directory_handle: {}", &name);
+    //println!("get_directory_handle: {}", &name);
     for entry in self.nfs_entries()? {
       if entry.name == name {
         if entry.kind != KIND_DIRECTORY {
@@ -485,10 +498,10 @@ impl JsSmbDirectoryHandle {
       return Err(Error::new(Status::GenericFailure, format!("Directory {:?} not found", name)));
     }
     let path = format_dir_path(&self.handle.path, &name);
-    let nfs = &self.handle.nfs;
-    let my_nfs = nfs.as_ref().unwrap().write().unwrap();
-    let _ = my_nfs.mkdir(path.trim_end_matches('/'), 0o775)?;
-    Ok(JsSmbHandle{nfs: self.handle.nfs.clone(), path, kind: KIND_DIRECTORY.into(), name}.into())
+    let smb = &self.handle.smb;
+    let my_smb = smb.as_ref().unwrap().write().unwrap();
+    let _ = my_smb.mkdir(path.trim_end_matches('/'), 0o775)?;
+    Ok(JsSmbHandle{smb: self.handle.smb.clone(), path, kind: KIND_DIRECTORY.into(), name}.into())
   }
 
   #[napi]
@@ -505,32 +518,32 @@ impl JsSmbDirectoryHandle {
       return Err(Error::new(Status::GenericFailure, format!("File {:?} not found", name)));
     }
     let path = format_file_path(&self.handle.path, &name);
-    let nfs = &self.handle.nfs;
-    let mut my_nfs = nfs.as_ref().unwrap().write().unwrap();
-    let _ = my_nfs.create(path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32, (Mode::S_IRUSR | Mode::S_IWUSR | Mode::S_IRGRP | Mode::S_IWGRP | Mode::S_IROTH | Mode::S_IWOTH).bits() as u32)?; // XXX: change mode value to 0o664?
-    Ok(JsSmbHandle{nfs: self.handle.nfs.clone(), path, kind: KIND_FILE.into(), name}.into())
+    let smb = &self.handle.smb;
+    let mut my_smb = smb.as_ref().unwrap().write().unwrap();
+    let _ = my_smb.create(path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32, (Mode::S_IRUSR | Mode::S_IWUSR | Mode::S_IRGRP | Mode::S_IWGRP | Mode::S_IROTH | Mode::S_IWOTH).bits() as u32)?; // XXX: change mode value to 0o664?
+    Ok(JsSmbHandle{smb: self.handle.smb.clone(), path, kind: KIND_FILE.into(), name}.into())
   }
 
   fn nfs_remove(&self, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
-    let nfs = &self.handle.nfs;
-    let mut my_nfs = nfs.as_ref().unwrap().write().unwrap();
-    self.nfs_remove_guarded(&mut my_nfs, entry, recursive)
+    let smb = &self.handle.smb;
+    let mut my_smb = smb.as_ref().unwrap().write().unwrap();
+    self.nfs_remove_guarded(&mut my_smb, entry, recursive)
   }
 
-  fn nfs_remove_guarded(&self, my_nfs: &mut RwLockWriteGuard<Box<dyn SMB>>, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
+  fn nfs_remove_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn SMB>>, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
     if entry.kind == KIND_DIRECTORY {
-      let subentries = JsSmbDirectoryHandle::from(entry.to_owned()).nfs_entries_guarded(my_nfs)?;
+      let subentries = JsSmbDirectoryHandle::from(entry.to_owned()).nfs_entries_guarded(my_smb)?;
       if !recursive && subentries.len() > 0 {
         return Err(Error::new(Status::GenericFailure, format!("Directory {:?} is not empty", entry.name)));
       }
 
       for subentry in subentries {
-        let _ = self.nfs_remove_guarded(my_nfs, &subentry, recursive)?;
+        let _ = self.nfs_remove_guarded(my_smb, &subentry, recursive)?;
       }
 
-      my_nfs.rmdir(entry.path.trim_end_matches('/'))?;
+      my_smb.rmdir(entry.path.trim_end_matches('/'))?;
     } else {
-      my_nfs.unlink(entry.path.as_str())?;
+      my_smb.unlink(entry.path.as_str())?;
     }
 
     Ok(())
@@ -637,10 +650,10 @@ impl JsSmbFileHandle {
   pub async fn get_file(&self) -> Result<JsSmbFile> {
     let path = Path::new(self.handle.path.as_str());
     let type_ = mime_guess::from_path(path).first_raw().unwrap_or(MIME_TYPE_UNKNOWN).into();
-    let nfs = &self.handle.nfs;
-    let my_nfs = nfs.as_ref().unwrap().write().unwrap();
-    let nfs_stat = my_nfs.stat64(self.handle.path.as_str())?;
-    Ok(JsSmbFile{handle: self.handle.clone(), size: nfs_stat.size as i64, type_, last_modified: (nfs_stat.mtime * 1000) as i64, name: self.name.clone()})
+    let smb = &self.handle.smb;
+    let my_smb = smb.as_ref().unwrap().write().unwrap();
+    let smb_stat = my_smb.stat64(self.handle.path.as_str())?;
+    Ok(JsSmbFile{handle: self.handle.clone(), size: smb_stat.size as i64, type_, last_modified: (smb_stat.mtime * 1000) as i64, name: self.name.clone()})
   }
 
   #[napi]
@@ -723,12 +736,12 @@ impl JsSmbFile {
   }
 
   fn nfs_bytes(&self) -> Result<Vec<u8>> {
-    let nfs = &self.handle.nfs;
-    let mut my_nfs = nfs.as_ref().unwrap().write().unwrap();
-    let nfs_file = my_nfs.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
-    let nfs_stat = nfs_file.fstat64()?;
-    let buffer = &mut vec![0u8; nfs_stat.size as usize];
-    let _ = nfs_file.pread_into(nfs_stat.size as u32, 0, buffer)?;
+    let smb = &self.handle.smb;
+    let mut my_smb = smb.as_ref().unwrap().write().unwrap();
+    let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
+    let smb_stat = smb_file.fstat64()?;
+    let buffer = &mut vec![0u8; smb_stat.size as usize];
+    let _ = smb_file.pread_into(smb_stat.size as u32, 0, buffer)?;
     Ok(buffer.to_vec())
   }
 
@@ -954,14 +967,16 @@ impl JsSmbWritableFileStream {
   }
 
   fn nfs_write(&mut self, bytes: &[u8]) -> Result<Undefined> {
-    let nfs = &self.handle.nfs;
-    let mut my_nfs = nfs.as_ref().unwrap().write().unwrap();
-    let nfs_file = my_nfs.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
+    println!("nfs_write");
+    let smb = &self.handle.smb;
+    let mut my_smb: RwLockWriteGuard<'_, Box<dyn SMB>> = smb.as_ref().unwrap().write().unwrap();
+    //let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
+    let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_RDWR.bits() as u32)?;  
     let offset = match self.position {
-      None => nfs_file.fstat64()?.size,
+      None => smb_file.fstat64()?.size,
       Some(pos) => pos as u64
     };
-    let _ = nfs_file.pwrite(bytes, offset)?;
+    let _ = smb_file.pwrite(bytes, offset)?;
     let post_write_pos = (offset as i64) + (bytes.len() as i64);
     self.position = Some(post_write_pos);
     Ok(())
@@ -998,11 +1013,11 @@ impl JsSmbWritableFileStream {
   }
 
   fn nfs_truncate(&mut self, size: i64) -> Result<Undefined> {
-    let nfs = &self.handle.nfs;
-    let my_nfs = nfs.as_ref().unwrap().write().unwrap();
-    let nfs_stat = my_nfs.stat64(self.handle.path.as_str())?;
-    my_nfs.truncate(self.handle.path.as_str(), size as u64)?;
-    let size_before = nfs_stat.size as i64;
+    let smb = &self.handle.smb;
+    let my_smb: RwLockWriteGuard<'_, Box<dyn SMB>> = smb.as_ref().unwrap().write().unwrap();
+    let smb_stat = my_smb.stat64(self.handle.path.as_str())?;
+    my_smb.truncate(self.handle.path.as_str(), size as u64)?;
+    let size_before = smb_stat.size as i64;
     if let Some(position) = self.position {
       if position > size || position == size_before {
         self.position = Some(size);

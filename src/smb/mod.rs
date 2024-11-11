@@ -85,7 +85,7 @@ pub struct SMBStat64 {
   pub ctime_nsec: u64,
 }
 
-pub(crate) fn connect(url: String) -> Box<dyn SMB> {
+pub(crate) fn connect(url: String) -> Result<Box<dyn SMB>> {
     if std::env::var("TEST_USING_MOCKS").is_ok() {
         mock::SMBConnection::connect(url)
     } else {

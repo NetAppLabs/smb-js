@@ -19,7 +19,7 @@ pub(super) struct SMBConnection {
 }
 
 impl SMBConnection {
-    pub(super) fn connect(_url: String) -> Box<dyn SMB> {
+    pub(super) fn connect(_url: String) -> Result<Box<dyn SMB>> {
         let mut mocks = Mocks{dirs: BTreeSet::new(), files: BTreeMap::new()};
         let _ = mocks.dirs.insert("/first/".into());
         let _ = mocks.dirs.insert("/quatre/".into());
@@ -27,7 +27,7 @@ impl SMBConnection {
         let _ = mocks.files.insert("/annar".into(), "In order to make sure that this file is exactly 123 bytes in size, I have written this text while watching its chars count.".as_bytes().to_vec());
         let _ = mocks.files.insert("/first/comment".into(), Vec::new());
         let _ = mocks.files.insert("/quatre/points".into(), Vec::new());
-        Box::new(SMBConnection{mocks: Arc::new(RwLock::new(mocks))})
+        Ok(Box::new(SMBConnection{mocks: Arc::new(RwLock::new(mocks))}))
     }
 }
 

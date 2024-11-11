@@ -13,7 +13,7 @@ pub(super) struct SMBConnection {
 }
 
 impl SMBConnection {
-    pub(super) fn connect(url: String) -> Box<dyn SMB> {
+    pub(super) fn connect(url: String) -> Result<Box<dyn SMB>> {
         let mut real_url = url;
         let mut smb = Smb::new().unwrap();
         let mut passwd: Option<String> = None;
@@ -31,8 +31,15 @@ impl SMBConnection {
             },
             Err(_) => {},
         }
-        let _ = smb.parse_url_mount(real_url.as_str(), passwd).unwrap();
-        Box::new(SMBConnection{smb: Arc::new(RwLock::new(smb))})
+        let conn_res = smb.parse_url_mount(real_url.as_str(), passwd);
+        match conn_res {
+            Ok(_) => {
+                return Ok(Box::new(SMBConnection{smb: Arc::new(RwLock::new(smb))}));
+            },
+            Err(e) => {
+                return Err(e);
+            }
+        }
     }
 }
 
@@ -49,8 +56,9 @@ impl SMB for SMBConnection {
     }*/
 
     fn stat64(&self, path: &str) -> Result<SMBStat64> {
+        let smb_path = normalize_smb_path(path);
         let my_smb = self.smb.write().unwrap();
-        my_smb.stat64(Path::new(path)).map(|res| SMBStat64{
+        my_smb.stat64(Path::new(smb_path)).map(|res| SMBStat64{
             ino: res.smb2_ino,
             nlink: res.smb2_nlink.into(),
             size: res.smb2_size,
@@ -64,42 +72,61 @@ impl SMB for SMBConnection {
     }
 
     fn opendir(&mut self, path: &str) -> Result<Box<dyn SMBDirectory>> {
+        let smb_path = normalize_smb_path(path);
         let mut my_smb = self.smb.write().unwrap();
-        let dir = my_smb.opendir(Path::new(path))?;
+        let dir = my_smb.opendir(Path::new(smb_path))?;
         Ok(Box::new(SMBDirectory2{dir}))
     }
 
     fn mkdir(&self, path: &str, _mode: u32) -> Result<()> { // FIXME: mode
+        let smb_path = normalize_smb_path(path);
         let my_smb = self.smb.write().unwrap();
-        my_smb.mkdir(Path::new(path))
+        my_smb.mkdir(Path::new(smb_path))
     }
 
     fn create(&mut self, path: &str, flags: u32, mode: u32) -> Result<Box<dyn SMBFile>> {
+        let smb_path = normalize_smb_path(path);
         let mut my_smb = self.smb.write().unwrap();
-        let file = my_smb.create(Path::new(path), OFlag::from_bits_truncate(flags as i32), Mode::from_bits_truncate((mode as u16).into()))?;
+        let file = my_smb.create(Path::new(smb_path), OFlag::from_bits_truncate(flags as i32), Mode::from_bits_truncate((mode as u16).into()))?;
         Ok(Box::new(SMBFile2{file}))
     }
 
     fn rmdir(&self, path: &str) -> Result<()> {
+        let smb_path = normalize_smb_path(path);
         let my_smb = self.smb.write().unwrap();
-        my_smb.rmdir(Path::new(path))
+        my_smb.rmdir(Path::new(smb_path))
     }
 
     fn unlink(&self, path: &str) -> Result<()> {
+        let smb_path = normalize_smb_path(path);
         let my_smb = self.smb.write().unwrap();
-        my_smb.unlink(Path::new(path))
+        my_smb.unlink(Path::new(smb_path))
     }
 
     fn open(&mut self, path: &str, flags: u32) -> Result<Box<dyn SMBFile>> {
+        let smb_path = normalize_smb_path(path);
         let mut my_smb = self.smb.write().unwrap();
-        let file = my_smb.open(Path::new(path), OFlag::from_bits_truncate(flags as i32))?;
+        let file = my_smb.open(Path::new(smb_path), OFlag::from_bits_truncate(flags as i32))?;
         Ok(Box::new(SMBFile2{file}))
     }
 
     fn truncate(&self, path: &str, len: u64) -> Result<()> {
+        let smb_path = normalize_smb_path(path);
         let my_smb = self.smb.write().unwrap();
-        my_smb.truncate(Path::new(path), len)
+        my_smb.truncate(Path::new(smb_path), len)
     }
+}
+
+pub fn normalize_smb_path(path: &str) -> &str {
+    let mut real_path = path;
+    let real_path_replaced = real_path.strip_prefix("/");
+    match real_path_replaced {
+        Some(replaced_path) => {
+            real_path = replaced_path;
+        },
+        None => {},
+    }
+    return real_path;
 }
 
 pub struct SMBDirectory2 {
@@ -119,6 +146,7 @@ impl Iterator for SMBDirectory2 {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.dir.next().map(|res| res.map(|entry| SMBDirEntry{
+            //path: normalize_smb_path(entry.path.into_os_string().into_string().unwrap().as_str()).into(),
             path: entry.path.into_os_string().into_string().unwrap(),
             inode: entry.inode,
             d_type: (entry.d_type as u32).into(),
@@ -164,6 +192,7 @@ impl SMBFile for SMBFile2 {
     }
 
     fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<u32> {
+        println!("file pwrite");
         self.file.pwrite(buffer, offset).map(|res| res as u32)
     }
 }

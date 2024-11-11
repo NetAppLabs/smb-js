@@ -3,6 +3,7 @@
 //! version=4 or programatically calling smb2_set_version(smb, smb2_V4) before
 //! connecting to the server/share.
 //!
+use libc::O_CREAT;
 use libsmb2_sys::*;
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
@@ -57,6 +58,7 @@ fn check_retcode(ctx: *mut smb2_context, code: i32) -> Result<()> {
 #[derive(Clone)]
 pub struct Smb {
     context: Arc<SmbPtr>,
+    //base_path: String,
 }
 
 #[derive(Clone, Debug)]
@@ -229,12 +231,14 @@ impl Smb {
     /// O_SYNC
     /// O_EXCL
     /// O_TRUNC
-    pub fn create(&mut self, path: &Path, _flags: OFlag, mode: Mode) -> Result<SmbFile> {
+    pub fn create(&mut self, path: &Path, flags: OFlag, mode: Mode) -> Result<SmbFile> {
         let path = CString::new(path.as_os_str().as_bytes())?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
-            let mut file_handle = smb2_open(ctx, path.as_ptr(), _flags.bits());
+            let mut smb_flags = flags;
+            smb_flags.insert(OFlag::O_CREAT);
+            let mut file_handle = smb2_open(ctx, path.as_ptr(), smb_flags.bits());
             Ok(SmbFile {
                 smb: Arc::clone(&self.context),
                 handle: file_handle,
@@ -361,7 +365,7 @@ impl Smb {
     */
 
     pub fn set_password(&self, password: &str) -> Result<()> {
-        println!("smb2_set_password: {}", password);
+        //println!("smb2_set_password: {}", password);
         let password = CString::new(password.as_bytes())?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
@@ -396,7 +400,7 @@ impl Smb {
     /// O_SYNC
     /// O_TRUNC (Only valid with O_RDWR or O_WRONLY. Ignored otherwise.)
     pub fn open(&mut self, path: &Path, flags: OFlag) -> Result<SmbFile> {
-        println!("open: {} ", &path.display());
+        //println!("open: {} ", &path.display());
 
         let path = CString::new(path.as_os_str().as_bytes())?;
         let ctx_ref = self.context.0.lock().unwrap();
@@ -415,7 +419,7 @@ impl Smb {
     }
 
     pub fn opendir(&mut self, path: &Path) -> Result<SmbDirectory> {
-        println!("opendir: {} ", &path.display());
+        //println!("opendir: {} ", &path.display());
         let cpath = CString::new(path.as_os_str().as_bytes())?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
@@ -503,6 +507,9 @@ impl Smb {
             let share = url.share;
             let user = url.user;
             let ctx_ref = self.context.0.lock().unwrap();
+            //let cpath = url.path;
+            //let pathcstr = CString::new(cpath.as_bytes())?;
+            //self.base_path = pathcstr.into();
             let ctx = *ctx_ref;
             check_retcode(
                 ctx,
@@ -729,6 +736,7 @@ impl SmbFile {
     }
 
     pub fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<i32> {
+        println!("pwrite: offset: {}", offset);
         let ctx_ref = self.smb.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
