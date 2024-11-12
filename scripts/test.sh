@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -e
+
 ./scripts/deps-test.sh
 
 if command -v brew 2>&1 >/dev/null ; then
@@ -57,12 +59,15 @@ sleep 1
 
 function kill_samba() {
     EXITCODE=$?
-        echo "Stopping samba"
+        echo "Stopping samba EXITCODE=$EXITCODE"
         kill -9 $SAMBA_PID || true
+        exit $EXITCODE
     if [ $EXITCODE -ne 0 ]; then
         cat ${SAMBA_CONFIG_DIR}/smb.log
     fi
 }
+
+trap kill_samba EXIT
 
 export RUST_BACKTRACE=1
 
@@ -74,4 +79,3 @@ TEST_USING_MOCKS=1 yarn test-ava
 echo "Test using SMB via URL ${SMB_URL} via libsmb2"
 yarn test-ava
 
-trap kill_samba EXIT
