@@ -12,6 +12,7 @@ fi
 
 SAMBA_CONFIG_DIR=`mktemp -d`
 mkdir -p ${SAMBA_CONFIG_DIR}/private
+mkdir -p ${SAMBA_CONFIG_DIR}/locks
 echo "SAMBA_CONFIG_DIR: ${SAMBA_CONFIG_DIR}"
 SHARE_DIR=`mktemp -d`
 echo "SHARE_DIR: ${SHARE_DIR}"
@@ -27,6 +28,14 @@ cat <<EOF > ${SAMBA_CONFIG_DIR}/smbd.conf
    max log size = 1000
    logging = file
    private dir = ${SAMBA_CONFIG_DIR}/private
+   lock directory = ${SAMBA_CONFIG_DIR}/locks
+   cache directory = ${SAMBA_CONFIG_DIR}/private
+   pid directory = ${SAMBA_CONFIG_DIR}/locks
+   state directory = ${SAMBA_CONFIG_DIR}/locks
+   passdb backend = tdbsam:${SAMBA_CONFIG_DIR}/private/passdb.tdb
+   winbindd socket directory = ${SAMBA_CONFIG_DIR}/locks
+   winbindd privileged socket directory = ${SAMBA_CONFIG_DIR}/locks
+   ncalrpc dir = ${SAMBA_CONFIG_DIR}/locks
    server role = standalone server
    unix password sync = no
    map to guest = bad user
