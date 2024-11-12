@@ -3,7 +3,6 @@
 //! version=4 or programatically calling smb2_set_version(smb, smb2_V4) before
 //! connecting to the server/share.
 //!
-use libc::O_CREAT;
 use libsmb2_sys::*;
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
@@ -11,10 +10,9 @@ use nix::sys::stat::Mode;
 use std::ffi::{CStr, CString};
 use std::io::{Error, ErrorKind, Result};
 use std::mem::zeroed;
-use std::os::raw::{c_int, c_char};
+use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::ptr;
 use std::sync::{Arc, Mutex};
 
 #[derive(Clone)]
@@ -58,7 +56,7 @@ fn check_retcode(ctx: *mut smb2_context, code: i32) -> Result<()> {
 #[derive(Clone)]
 pub struct Smb {
     context: Arc<SmbPtr>,
-    //base_path: String,
+    base_path: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -163,6 +161,7 @@ impl Smb {
             let ctx = check_mut_ptr(smb2_init_context())?;
             Ok(Smb {
                 context: Arc::new(SmbPtr(Arc::new(Mutex::new(ctx)))),
+                base_path: None,
             })
         }
     }
@@ -178,7 +177,7 @@ impl Smb {
 
     /*
     pub fn access(&self, path: &Path, mode: i32) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_path_cstr(path)?;
         unsafe {
             let ctx_ref = self.context.0.lock().unwrap();
             let ctx = *ctx_ref;
@@ -191,7 +190,7 @@ impl Smb {
     }
 
     pub fn access2(&self, path: &Path) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -202,7 +201,7 @@ impl Smb {
     */
     /*
     pub fn chdir(&self, path: &Path) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -213,7 +212,7 @@ impl Smb {
     */
     /* 
     pub fn chown(&self, path: &Path, uid: i32, gid: i32) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -231,14 +230,14 @@ impl Smb {
     /// O_SYNC
     /// O_EXCL
     /// O_TRUNC
-    pub fn create(&mut self, path: &Path, flags: OFlag, mode: Mode) -> Result<SmbFile> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+    pub fn create(&mut self, path: &Path, flags: OFlag, _mode: Mode) -> Result<SmbFile> {
+        let path = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
             let mut smb_flags = flags;
             smb_flags.insert(OFlag::O_CREAT);
-            let mut file_handle = smb2_open(ctx, path.as_ptr(), smb_flags.bits());
+            let file_handle = smb2_open(ctx, path.as_ptr(), smb_flags.bits());
             Ok(SmbFile {
                 smb: Arc::clone(&self.context),
                 handle: file_handle,
@@ -282,7 +281,7 @@ impl Smb {
     */
     /*
     pub fn lchmod(&self, path: &Path, mode: Mode) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -295,7 +294,7 @@ impl Smb {
     }
     
     pub fn lchown(&self, path: &Path, uid: i32, gid: i32) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -326,7 +325,7 @@ impl Smb {
 
     /*
     pub fn lstat64(&self, path: &Path) -> Result<smb2_stat_64> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -341,7 +340,7 @@ impl Smb {
     */
 
     pub fn mkdir(&self, path: &Path) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -351,7 +350,7 @@ impl Smb {
     }
     /*
     pub fn mknod(&self, path: &Path, mode: i32, dev: i32) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -402,11 +401,11 @@ impl Smb {
     pub fn open(&mut self, path: &Path, flags: OFlag) -> Result<SmbFile> {
         //println!("open: {} ", &path.display());
 
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
-            let mut file_handle = smb2_open(
+            let file_handle = smb2_open(
                     ctx,
                     path.as_ptr(),
                     flags.bits(),
@@ -420,7 +419,7 @@ impl Smb {
 
     pub fn opendir(&mut self, path: &Path) -> Result<SmbDirectory> {
         //println!("opendir: {} ", &path.display());
-        let cpath = CString::new(path.as_os_str().as_bytes())?;
+        let cpath = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -499,7 +498,7 @@ impl Smb {
             if password.is_some(){
                 let pstring = password.unwrap();
                 let pstr = pstring.as_str();
-                self.set_password(pstr);
+                let _ = self.set_password(pstr);
             }
             let n_url = self.parse_url_full(url)?;
             let url = *n_url.url;
@@ -507,9 +506,13 @@ impl Smb {
             let share = url.share;
             let user = url.user;
             let ctx_ref = self.context.0.lock().unwrap();
-            //let cpath = url.path;
-            //let pathcstr = CString::new(cpath.as_bytes())?;
-            //self.base_path = pathcstr.into();
+            let cpath = url.path;
+            let pathcstr: &CStr = CStr::from_ptr(cpath);
+            let pathstr: &str = pathcstr.to_str().unwrap();
+            if pathstr != "" {
+                //println!("setting base_path: {}", pathstr);
+                self.base_path = Some(pathstr.into());
+            }
             let ctx = *ctx_ref;
             check_retcode(
                 ctx,
@@ -519,8 +522,25 @@ impl Smb {
         }
     }
 
+    pub fn get_resolved_path_cstr(&self, path: &Path) -> Result<CString> {
+        let mut real_path = path;
+        match &self.base_path {
+            Some(parent_path) => {
+                let path_parent_path = Path::new(parent_path.as_str());
+                let real_path_pathbuf = path_parent_path.join(PathBuf::from(path));
+                real_path = real_path_pathbuf.as_path();
+                let path = CString::new(real_path.as_os_str().as_bytes())?;
+                return Ok(path);
+    
+            },
+            None => {},
+        }
+        let path = CString::new(real_path.as_os_str().as_bytes())?;
+        return Ok(path);
+    }
+
     pub fn readlink(&self, path: &Path, buf: &mut [u8]) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
 
@@ -553,7 +573,7 @@ impl Smb {
     }
 
     pub fn rmdir(&self, path: &Path) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -574,7 +594,7 @@ impl Smb {
 
 
     pub fn stat64(&self, path: &Path) -> Result<smb2_stat_64> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -588,7 +608,7 @@ impl Smb {
     }
 
     pub fn statvfs(&self, path: &Path) -> Result<smb2_statvfs> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -618,7 +638,7 @@ impl Smb {
     */
 
     pub fn truncate(&self, path: &Path, len: u64) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -631,7 +651,7 @@ impl Smb {
     }
 
     pub fn unlink(&self, path: &Path) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -643,7 +663,7 @@ impl Smb {
     /*
     // Set the access and modified times
     pub fn utimes(&self, path: &Path, times: &mut [timeval; 2]) -> Result<()> {
-        let path = CString::new(path.as_os_str().as_bytes())?;
+        let path = self.get_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {
@@ -736,7 +756,6 @@ impl SmbFile {
     }
 
     pub fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<i32> {
-        println!("pwrite: offset: {}", offset);
         let ctx_ref = self.smb.0.lock().unwrap();
         let ctx = *ctx_ref;
         unsafe {

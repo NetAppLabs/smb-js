@@ -2,13 +2,13 @@
 name = "libsmb2-rs"
 version = "0.1.2"
 authors = ["Chris Holcombe <xfactor973@gmail.com>"]
-description = "libnfs bindings allow you to create nfs mounts in memory/userspace"
+description = "libsmb2 bindings allow you to create smb mounts in memory/userspace"
 homepage = "https://github.com/NetAppLabs/libsmb2-rs"
 repository = "https://github.com/NetAppLabs/libsmb2-rs"
 documentation = "https://docs.rs/libsmb2-rs"
 license = "MIT"
 readme = "README.md"
-keywords = ["nfs"]
+keywords = ["smb"]
 categories = ["api-bindings", "network-programming", "filesystem", "external-ffi-bindings"]
 edition = '2018'
 

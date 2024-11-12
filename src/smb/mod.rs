@@ -57,6 +57,7 @@ impl From<u32> for SMBEntryType {
     }
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct SMBDirEntry {
     pub path: String,
@@ -72,6 +73,7 @@ pub struct SMBDirEntry {
     pub ctime_nsec: u64,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
 pub struct SMBStat64 {
   pub ino: u64,

@@ -17,8 +17,8 @@ and https://web.dev/file-system-access/
 
 
 // Example use:
-const nfs_url = 'smb://1.2.3.4/export?vers=3';
-const rootHandle = new SMBDirectoryHandle(nfs_url);
+const smb_url = 'smb://1.2.3.4/export?vers=3';
+const rootHandle = new SMBDirectoryHandle(smb_url);
 
 for await (const [name, entry] of rootHandle) {
   console.log('FileName: ', name, 'Entry: ', entry);
@@ -123,11 +123,11 @@ const FIELD_BYTE_LENGTH: &str = "byteLength";
 const KIND_FILE: &str = "file";
 const KIND_DIRECTORY: &str = "directory";
 
-const PERM_READ: &str = "read";
-const PERM_READWRITE: &str = "readwrite";
+//const PERM_READ: &str = "read";
+//const PERM_READWRITE: &str = "readwrite";
 
 const PERM_STATE_GRANTED: &str = "granted";
-const PERM_STATE_DENIED: &str = "denied";
+//const PERM_STATE_DENIED: &str = "denied";
 const _PERM_STATE_PROMPT: &str = "prompt";
 
 const WRITE_TYPE_WRITE: &str = "write";
@@ -243,6 +243,7 @@ pub struct JsSmbHandlePermissionDescriptor {
   pub mode: String
 }
 
+/*
 impl JsSmbHandlePermissionDescriptor {
 
   fn to_mode(&self, kind: &str) -> Mode {
@@ -258,6 +259,7 @@ impl JsSmbHandlePermissionDescriptor {
     self.to_mode(kind).bits().into()
   }
 }
+*/
 
 #[napi(object)]
 pub struct JsSmbGetDirectoryOptions {
@@ -343,35 +345,37 @@ impl JsSmbHandle {
   }
 
   #[napi]
-  pub async fn query_permission(&self, perm: JsSmbHandlePermissionDescriptor) -> Result<String> {
-    if let Some(nfs) = &self.smb {
-      let my_smb = nfs.write().unwrap();
+  pub async fn query_permission(&self, _perm: JsSmbHandlePermissionDescriptor) -> Result<String> {
+    /*if let Some(smb) = &self.smb {
+      let my_smb = smb.write().unwrap();
       let smb_stat = my_smb.stat64(self.path.as_str())?;
       let perm_u64 = perm.to_u64(self.kind.as_str());
-      //if nfs_stat.mode & perm_u64 == perm_u64 {
+      if smb_stat.mode & perm_u64 == perm_u64 {
         return Ok(PERM_STATE_GRANTED.into());
-      //}
-    }
-    if self.smb.is_none() && ((self.name != "3" && self.name != "quatre") || perm.mode != PERM_READWRITE) {
+      }
+    }*/
+    return Ok(PERM_STATE_GRANTED.into());
+    /*if self.smb.is_none() && ((self.name != "3" && self.name != "quatre") || perm.mode != PERM_READWRITE) {
       return Ok(PERM_STATE_GRANTED.into());
     }
     Ok(PERM_STATE_DENIED.into())
+    */
   }
 
   #[napi]
   pub async fn request_permission(&self, perm: JsSmbHandlePermissionDescriptor) -> Result<String> {
-    if let Some(nfs) = &self.smb {
-      let my_smb = nfs.write().unwrap();
+    /*if let Some(smb) = &self.smb {
+      let my_smb = smb.write().unwrap();
       let smb_stat = my_smb.stat64(self.path.as_str())?;
       let perm_u64 = perm.to_u64(self.kind.as_str());
-      //if nfs_stat.mode & perm_u64 == perm_u64 {
+      if smb_stat.mode & perm_u64 == perm_u64 {
         return Ok(PERM_STATE_GRANTED.into());
-      //}
-      //let mode = perm.to_mode(self.kind.as_str()).union(Mode::from_bits_truncate((nfs_stat.mode as u16).into()));
-      //if !my_smb.lchmod(self.name.as_str(), mode.bits() as u32).is_ok() {
-      //  return Ok(PERM_STATE_DENIED.into());
-      //}
-    }
+      }
+      let mode = perm.to_mode(self.kind.as_str()).union(Mode::from_bits_truncate((smb_stat.mode as u16).into()));
+      if !my_smb.lchmod(self.name.as_str(), mode.bits() as u32).is_ok() {
+        return Ok(PERM_STATE_DENIED.into());
+      }
+    }*/
     self.query_permission(perm).await
   }
 }
@@ -443,15 +447,15 @@ impl JsSmbDirectoryHandle {
     self.handle.request_permission(perm).await
   }
 
-  fn nfs_entries(&self) -> Result<Vec<JsSmbHandle>> {
+  fn smb_entries(&self) -> Result<Vec<JsSmbHandle>> {
     let smb = &self.handle.smb;
     let mut my_smb = smb.as_ref().unwrap().write().unwrap();
-    self.nfs_entries_guarded(&mut my_smb)
+    self.smb_entries_guarded(&mut my_smb)
   }
 
-  fn nfs_entries_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn SMB>>) -> Result<Vec<JsSmbHandle>> {
+  fn smb_entries_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn SMB>>) -> Result<Vec<JsSmbHandle>> {
     let mut entries = Vec::new();
-    let mut path = self.handle.path.as_str();
+    let path = self.handle.path.as_str();
     let dir = my_smb.opendir(path)?;
     for entry in dir {
       if let Some(e) = entry.ok() {
@@ -470,23 +474,22 @@ impl JsSmbDirectoryHandle {
 
   #[napi(iterator, ts_return_type="AsyncIterableIterator<[string, JsSmbDirectoryHandle | JsSmbFileHandle]>")]
   pub fn entries(&self, env: Env) -> Result<JsSmbDirectoryHandleEntries> {
-    Ok(JsSmbDirectoryHandleEntries{entries: self.nfs_entries()?, env: SendWrapper::new(env), count: 0, _sym: false})
+    Ok(JsSmbDirectoryHandleEntries{entries: self.smb_entries()?, env: SendWrapper::new(env), count: 0, _sym: false})
   }
 
   #[napi(iterator, ts_return_type="AsyncIterableIterator<string>")]
   pub fn keys(&self) -> Result<JsSmbDirectoryHandleKeys> {
-    Ok(JsSmbDirectoryHandleKeys{entries: self.nfs_entries()?, count: 0, _sym: false})
+    Ok(JsSmbDirectoryHandleKeys{entries: self.smb_entries()?, count: 0, _sym: false})
   }
 
   #[napi(iterator, ts_return_type="AsyncIterableIterator<JsSmbDirectoryHandle | JsSmbFileHandle>")]
   pub fn values(&self) -> Result<JsSmbDirectoryHandleValues> {
-    Ok(JsSmbDirectoryHandleValues{entries: self.nfs_entries()?, count: 0, _sym: false})
+    Ok(JsSmbDirectoryHandleValues{entries: self.smb_entries()?, count: 0, _sym: false})
   }
 
   #[napi]
   pub async fn get_directory_handle(&self, name: String, #[napi(ts_arg_type="JsSmbGetDirectoryOptions")] options: Option<JsSmbGetDirectoryOptions>) -> Result<JsSmbDirectoryHandle> {
-    //println!("get_directory_handle: {}", &name);
-    for entry in self.nfs_entries()? {
+    for entry in self.smb_entries()? {
       if entry.name == name {
         if entry.kind != KIND_DIRECTORY {
           return Err(Error::new(Status::GenericFailure, "The path supplied exists, but was not an entry of requested type.".to_string()));
@@ -506,7 +509,7 @@ impl JsSmbDirectoryHandle {
 
   #[napi]
   pub async fn get_file_handle(&self, name: String, #[napi(ts_arg_type="JsSmbGetFileOptions")] options: Option<JsSmbGetFileOptions>) -> Result<JsSmbFileHandle> {
-    for entry in self.nfs_entries()? {
+    for entry in self.smb_entries()? {
       if entry.name == name {
         if entry.kind != KIND_FILE {
           return Err(Error::new(Status::GenericFailure, "The path supplied exists, but was not an entry of requested type.".to_string()));
@@ -524,21 +527,21 @@ impl JsSmbDirectoryHandle {
     Ok(JsSmbHandle{smb: self.handle.smb.clone(), path, kind: KIND_FILE.into(), name}.into())
   }
 
-  fn nfs_remove(&self, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
+  fn smb_remove(&self, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
     let smb = &self.handle.smb;
     let mut my_smb = smb.as_ref().unwrap().write().unwrap();
-    self.nfs_remove_guarded(&mut my_smb, entry, recursive)
+    self.smb_remove_guarded(&mut my_smb, entry, recursive)
   }
 
-  fn nfs_remove_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn SMB>>, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
+  fn smb_remove_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn SMB>>, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
     if entry.kind == KIND_DIRECTORY {
-      let subentries = JsSmbDirectoryHandle::from(entry.to_owned()).nfs_entries_guarded(my_smb)?;
+      let subentries = JsSmbDirectoryHandle::from(entry.to_owned()).smb_entries_guarded(my_smb)?;
       if !recursive && subentries.len() > 0 {
         return Err(Error::new(Status::GenericFailure, format!("Directory {:?} is not empty", entry.name)));
       }
 
       for subentry in subentries {
-        let _ = self.nfs_remove_guarded(my_smb, &subentry, recursive)?;
+        let _ = self.smb_remove_guarded(my_smb, &subentry, recursive)?;
       }
 
       my_smb.rmdir(entry.path.trim_end_matches('/'))?;
@@ -551,15 +554,15 @@ impl JsSmbDirectoryHandle {
 
   #[napi]
   pub async fn remove_entry(&self, name: String, #[napi(ts_arg_type="JsSmbRemoveOptions")] options: Option<JsSmbRemoveOptions>) -> Result<()> {
-    for entry in self.nfs_entries()? {
+    for entry in self.smb_entries()? {
       if entry.name == name {
-        return self.nfs_remove(&entry, options.unwrap_or_default().recursive);
+        return self.smb_remove(&entry, options.unwrap_or_default().recursive);
       }
     }
     Err(Error::new(Status::GenericFailure, format!("Entry {:?} not found", name)))
   }
 
-  fn nfs_resolve(&self, subentries: Vec<JsSmbHandle>, possible_descendant: &JsSmbHandle) -> Result<Vec<String>> {
+  fn smb_resolve(&self, subentries: Vec<JsSmbHandle>, possible_descendant: &JsSmbHandle) -> Result<Vec<String>> {
     for subentry in subentries {
       if subentry.is_same(possible_descendant) {
         return Ok(subentry.path.trim_matches('/').split('/').map(str::to_string).collect());
@@ -567,7 +570,7 @@ impl JsSmbDirectoryHandle {
 
       if subentry.kind == KIND_DIRECTORY {
         let subdir = JsSmbDirectoryHandle::from(subentry);
-        let res = subdir.nfs_resolve(subdir.nfs_entries()?, possible_descendant);
+        let res = subdir.smb_resolve(subdir.smb_entries()?, possible_descendant);
         if res.is_ok() {
           return res;
         }
@@ -602,7 +605,7 @@ impl Task for JsSmbDirectoryHandleResolve {
   type JsValue = Either<Vec<String>, Null>;
 
   fn compute(&mut self) -> Result<Self::Output> {
-    self.handle.nfs_resolve(self.handle.nfs_entries()?, &self.possible_descendant)
+    self.handle.smb_resolve(self.handle.smb_entries()?, &self.possible_descendant)
       .map_or_else(
         |_| Ok(Either::B(Null)),
         |resolved| Ok(Either::A(resolved))
@@ -705,8 +708,8 @@ impl JsSmbFile {
     }).unwrap_or(def) as usize
   }
 
-  pub fn nfs_slice(&self, start: Option<i64>, end: Option<i64>) -> Result<Vec<u8>> {
-    let content = self.nfs_bytes()?;
+  pub fn smb_slice(&self, start: Option<i64>, end: Option<i64>) -> Result<Vec<u8>> {
+    let content = self.smb_bytes()?;
     let len = content.len() as i64;
     let start = self.get_index_from_optional(start, len, 0);
     let end = self.get_index_from_optional(end, len, len);
@@ -715,7 +718,7 @@ impl JsSmbFile {
 
   #[napi(ts_return_type="Blob")]
   pub fn slice(&self, env: Env, #[napi(ts_arg_type="number")] start: Option<i64>, #[napi(ts_arg_type="number")] end: Option<i64>, #[napi(ts_arg_type="string")] content_type: Option<String>) -> Result<Object> {
-    let sliced = self.nfs_slice(start, end)?;
+    let sliced = self.smb_slice(start, end)?;
     let mut arg1 = env.create_array_with_length(1)?;
     let _ = arg1.set_element(0, env.create_arraybuffer_with_data(sliced)?.into_raw().coerce_to_object()?)?;
     let mut arg2 = env.create_object()?;
@@ -730,12 +733,12 @@ impl JsSmbFile {
   pub fn stream(&self, env: Env) -> Result<Object> {
     let global = env.get_global()?;
     let constructor = global.get_named_property::<JsFunction>(JS_TYPE_READABLE_STREAM)?;
-    let arg = JsSmbReadableStreamSource{content: self.nfs_bytes()?, count: 0, type_: READABLE_STREAM_SOURCE_TYPE_BYTES.into()}.into_instance(env)?;
+    let arg = JsSmbReadableStreamSource{content: self.smb_bytes()?, count: 0, type_: READABLE_STREAM_SOURCE_TYPE_BYTES.into()}.into_instance(env)?;
     let stream = constructor.new_instance(&[arg])?;
     Ok(stream)
   }
 
-  fn nfs_bytes(&self) -> Result<Vec<u8>> {
+  fn smb_bytes(&self) -> Result<Vec<u8>> {
     let smb = &self.handle.smb;
     let mut my_smb = smb.as_ref().unwrap().write().unwrap();
     let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
@@ -747,7 +750,7 @@ impl JsSmbFile {
 
   #[napi]
   pub async fn text(&self) -> Result<String> {
-    Ok(std::str::from_utf8(&self.nfs_bytes()?).unwrap().into())
+    Ok(std::str::from_utf8(&self.smb_bytes()?).unwrap().into())
   }
 }
 
@@ -761,7 +764,7 @@ impl Task for JsSmbFileArrayBuffer {
   type JsValue = JsArrayBuffer;
 
   fn compute(&mut self) -> Result<Self::Output> {
-    self.0.nfs_bytes()
+    self.0.smb_bytes()
   }
 
   fn resolve(&mut self, env: Env, output: Self::Output) -> Result<Self::JsValue> {
@@ -950,7 +953,7 @@ impl JsSmbWritableFileStream {
   fn try_seek_and_write_data(&mut self, options: &JsSmbWritableFileStreamWriteOptions) -> Result<Undefined> {
     let old_position = self.position.clone();
     if let Some(position) = options.position {
-      self.nfs_seek(position)?;
+      self.smb_seek(position)?;
     }
     let res = self.try_write_data(options);
     if !res.is_ok() {
@@ -961,17 +964,18 @@ impl JsSmbWritableFileStream {
 
   fn try_write_data(&mut self, options: &JsSmbWritableFileStreamWriteOptions) -> Result<Undefined> {
     if let Some(data) = &options.data {
-      return self.nfs_write(data.as_slice());
+      return self.smb_write(data.as_slice());
     }
     Err(Error::new(Status::InvalidArg, format!("Property data of type object or string is required when writing object with type={:?}", WRITE_TYPE_WRITE)))
   }
 
-  fn nfs_write(&mut self, bytes: &[u8]) -> Result<Undefined> {
-    println!("nfs_write");
+  fn smb_write(&mut self, bytes: &[u8]) -> Result<Undefined> {
     let smb = &self.handle.smb;
     let mut my_smb: RwLockWriteGuard<'_, Box<dyn SMB>> = smb.as_ref().unwrap().write().unwrap();
     //let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
-    let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_RDWR.bits() as u32)?;  
+    let mut flags = nix::fcntl::OFlag::O_RDWR;
+    flags.insert(nix::fcntl::OFlag::O_SYNC);
+    let smb_file = my_smb.open(self.handle.path.as_str(), flags.bits() as u32)?;  
     let offset = match self.position {
       None => smb_file.fstat64()?.size,
       Some(pos) => pos as u64
@@ -990,29 +994,29 @@ impl JsSmbWritableFileStream {
 
   fn try_seek(&mut self, options: &JsSmbWritableFileStreamWriteOptions) -> Result<Undefined> {
     if let Some(position) = options.position {
-      return self.nfs_seek(position);
+      return self.smb_seek(position);
     }
     Err(Error::new(Status::InvalidArg, format!("Property position of type number is required when writing object with type={:?}", WRITE_TYPE_SEEK)))
   }
 
-  fn nfs_seek(&mut self, position: i64) -> Result<Undefined> {
+  fn smb_seek(&mut self, position: i64) -> Result<Undefined> {
     self.position = Some(position);
     Ok(())
   }
 
   #[napi(ts_return_type="Promise<void>")]
   pub fn seek(&mut self, position: i64) -> Result<Undefined> {
-    self.nfs_seek(position)
+    self.smb_seek(position)
   }
 
   fn try_truncate(&mut self, options: &JsSmbWritableFileStreamWriteOptions) -> Result<Undefined> {
     if let Some(size) = options.size {
-      return self.nfs_truncate(size);
+      return self.smb_truncate(size);
     }
     Err(Error::new(Status::InvalidArg, format!("Property size of type number is required when writing object with type={:?}", WRITE_TYPE_TRUNCATE)))
   }
 
-  fn nfs_truncate(&mut self, size: i64) -> Result<Undefined> {
+  fn smb_truncate(&mut self, size: i64) -> Result<Undefined> {
     let smb = &self.handle.smb;
     let my_smb: RwLockWriteGuard<'_, Box<dyn SMB>> = smb.as_ref().unwrap().write().unwrap();
     let smb_stat = my_smb.stat64(self.handle.path.as_str())?;
@@ -1114,7 +1118,7 @@ impl Task for JsSmbWritableFileStreamTruncate {
   type JsValue = ();
 
   fn compute(&mut self) -> Result<Self::Output> {
-    self.stream.nfs_truncate(self.size)
+    self.stream.smb_truncate(self.size)
   }
 
   fn resolve(&mut self, _env: Env, _output: Self::Output) -> Result<Self::JsValue> {
@@ -1182,7 +1186,7 @@ impl Task for JsSmbWritableStreamWrite {
   type JsValue = ();
 
   fn compute(&mut self) -> Result<Self::Output> {
-    self.sink.stream.nfs_write(self.chunk.as_slice())
+    self.sink.stream.smb_write(self.chunk.as_slice())
   }
 
   fn resolve(&mut self, _env: Env, _output: Self::Output) -> Result<Self::JsValue> {

@@ -3,25 +3,21 @@ import test from 'ava'
 import process from 'node:process';
 import { SmbDirectoryHandle, SmbFileHandle } from '../indax'
 
-const nfsURL = process.env.SMB_URL || 'smb://127.0.0.1/Users/Shared/smb/';
+const smbURL = process.env.SMB_URL || 'smb://127.0.0.1/Users/Shared/smb/';
 const smbPath = process.env.SMB_PATH;
 
 let cachedRoot: FileSystemDirectoryHandle;
 
 async function getRootHandle(): Promise<FileSystemDirectoryHandle> {
   if (!cachedRoot) {
-    cachedRoot = new SmbDirectoryHandle(nfsURL);
+    cachedRoot = new SmbDirectoryHandle(smbURL);
   }
+  //let cachedRoot = new SmbDirectoryHandle(smbURL);
   let subRoot: FileSystemDirectoryHandle  = cachedRoot;
   if (smbPath) {
     subRoot = await cachedRoot.getDirectoryHandle(smbPath);
   }
   return subRoot;
-}
-
-function getRootHandlePlain() {
-  let root = new SmbDirectoryHandle(nfsURL);
-  return root;
 }
 
 test.serial('should have correct properties for directory', async (t) => {

@@ -4,7 +4,7 @@ use std::sync::{Arc, RwLock};
 use nix::sys::stat::Mode;
 use nix::fcntl::OFlag;
 use libsmb2_rs::Smb;
-use url::{Url, ParseError};
+use url::{Url};
 
 use super::{SMB, SMBStat64, SMBDirectory, SMBFile, SMBDirEntry, Result, Time};
 
@@ -17,7 +17,7 @@ impl SMBConnection {
         let mut real_url = url;
         let mut smb = Smb::new().unwrap();
         let mut passwd: Option<String> = None;
-        let mut pre_parse_url = Url::parse(real_url.as_str());
+        let pre_parse_url = Url::parse(real_url.as_str());
         match pre_parse_url {
             Ok(mut purl) => {
                 let opasswd = purl.password();
@@ -26,7 +26,7 @@ impl SMBConnection {
                     let p_owned = p.to_owned();
                     passwd = Some(p_owned);
                 }
-                purl.set_password(None);
+                let _ = purl.set_password(None);
                 real_url = purl.to_string();
             },
             Err(_) => {},
@@ -192,7 +192,6 @@ impl SMBFile for SMBFile2 {
     }
 
     fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<u32> {
-        println!("file pwrite");
         self.file.pwrite(buffer, offset).map(|res| res as u32)
     }
 }

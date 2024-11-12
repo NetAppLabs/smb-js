@@ -1,6 +1,5 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::io::Error;
-use std::path::Path;
 use std::sync::{Arc, RwLock};
 use bytes::BufMut;
 
@@ -49,11 +48,11 @@ impl SMB for SMBConnection {
         } else {
             None
         };
-        let mode = if size.is_some() {
+        /*let mode = if size.is_some() {
             if path == "/3" { 0o444 } else { 0o664 }
         } else {
             if path == "/quatre" || path == "/quatre/" { 0o555 } else { 0o775 }
-        };
+        };*/
 
         Ok(SMBStat64{
             ino: Default::default(),
@@ -145,7 +144,7 @@ impl Iterator for SMBSDirectory2 {
             for (mock_file, content) in &mocks.files {
                 let (parent_path, name) = get_parent_path_and_name(&mock_file);
                 if parent_path == self.path {
-                        let mode = if mock_file == "/3" { 0o444 } else { 0o664 };
+                        //let mode = if mock_file == "/3" { 0o444 } else { 0o664 };
                         entries.push(SMBDirEntry{
                         path: name,
                         inode: Default::default(),
@@ -164,7 +163,7 @@ impl Iterator for SMBSDirectory2 {
             for mock_dir in mocks.dirs.iter().rev() {
                 let (parent_path, name) = get_parent_path_and_name(&mock_dir.trim_end_matches('/').into());
                 if parent_path == self.path {
-                    let mode = if mock_dir == "/quatre/" { 0o555 } else { 0o775 };
+                    //let mode = if mock_dir == "/quatre/" { 0o555 } else { 0o775 };
                     entries.push(SMBDirEntry{
                         path: name,
                         inode: Default::default(),
@@ -264,7 +263,7 @@ mod tests {
     #[test]
     fn mock_implementation_works() {
         let mut smb = SMBConnection::connect(String::new());
-        let res = smb.opendir("/");
+        let res = smb.unwrap().as_ref().opendir("/");
         assert!(res.is_ok(), "err = {}", res.unwrap_err());
         let dir = res.unwrap();
         let mut entries = Vec::new();
@@ -281,7 +280,7 @@ mod tests {
             ("first".to_string(), SMBEntryType::Directory),
         ];
         assert_eq!(entries, expected_entries);
-        let res = smb.opendir("/first/");
+        let res = smb.unwrap().as_ref().opendir("/first/");
         assert!(res.is_ok(), "err = {}", res.unwrap_err());
         let subdir = res.unwrap();
         let mut subentries = Vec::new();

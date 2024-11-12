@@ -1,0 +1,68 @@
+#!/bin/bash
+
+./scripts/deps-test.sh
+
+if command -v brew 2>&1 >/dev/null ; then
+    SAMBA_DIR=`readlink -f $(brew --prefix samba)`
+    echo "SAMBA_DIR: ${SAMBA_DIR}"
+    SAMBA_SERVER="${SAMBA_DIR}/sbin/samba-dot-org-smbd"
+else
+    SAMBA_SERVER="smbd"
+fi
+
+SAMBA_CONFIG_DIR=`mktemp -d`
+mkdir -p ${SAMBA_CONFIG_DIR}/private
+echo "SAMBA_CONFIG_DIR: ${SAMBA_CONFIG_DIR}"
+SHARE_DIR=`mktemp -d`
+echo "SHARE_DIR: ${SHARE_DIR}"
+mkdir -p  ${SHARE_DIR}/test
+./scripts/setup-testdir.sh ${SHARE_DIR}/test
+
+SAMBA_PORT="10445"
+
+cat <<EOF > ${SAMBA_CONFIG_DIR}/smbd.conf
+[global]
+   workgroup = WORKGROUP
+   log file = ${SAMBA_CONFIG_DIR}/smb.log
+   max log size = 1000
+   logging = file
+   private dir = ${SAMBA_CONFIG_DIR}/private
+   server role = standalone server
+   unix password sync = no
+   map to guest = bad user
+   usershare allow guests = yes
+
+[smbtest]
+comment = smbtest
+path = ${SHARE_DIR}
+read only = no
+browsable = yes
+create mask = 0666
+guest ok = yes
+EOF
+
+$SAMBA_SERVER --port=${SAMBA_PORT} -s ${SAMBA_CONFIG_DIR}/smbd.conf -F --debug-stdout -d 3 --no-process-group 2>&1 > ${SAMBA_CONFIG_DIR}/smb-stdout.log &
+SAMBA_PID=$!
+
+sleep 1
+
+function kill_samba() {
+    EXITCODE=$?
+        echo "Stopping samba"
+        kill $SAMBA_PID
+    if [ $EXITCODE -ne 0 ]; then
+        cat ${SAMBA_CONFIG_DIR}/smb.log
+    fi
+}
+
+export RUST_BACKTRACE=1
+
+export SMB_URL="smb://guest@127.0.0.1:${SAMBA_PORT}/smbtest/test"
+
+echo "Test using mocks"
+TEST_USING_MOCKS=1 yarn test-ava
+
+echo "Test using SMB via URL ${SMB_URL} via libsmb2"
+yarn test-ava
+
+trap kill_samba EXIT

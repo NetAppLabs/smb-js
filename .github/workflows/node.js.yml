@@ -5,9 +5,9 @@ name: Node.js CI
 
 on:
   push:
-    branches: [ "master", "fridvin*" ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ "master", "fridvin*" ]
+    branches: [ "main" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -25,27 +25,6 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
-    - name: Setup go
-      uses: actions/setup-go@v3
-      with:
-        go-version: '1.23'
-        check-latest: true
-    - name: Setup SSH
-      run: |
-        mkdir -p $HOME/.ssh
-        echo "${{ secrets.SSH_KEY_FOR_LIBNFS_SYS }}" > $HOME/.ssh/libnfs-sys
-        echo "${{ secrets.SSH_KEY_FOR_LIBNFS_RS }}" > $HOME/.ssh/libnfs-rs
-        echo "${{ secrets.SSH_KEY_FOR_NFS_RS }}" > $HOME/.ssh/nfs-rs
-        chmod 600 $HOME/.ssh/libnfs* $HOME/.ssh/nfs-rs
-    - name: Checkout submodules
-      run: |
-        ln -sf $HOME/.ssh/libnfs-sys $HOME/.ssh/id_rsa
-        git clone git@github.com:NetAppLabs/libnfs-sys.git
-        ln -sf $HOME/.ssh/libnfs-rs $HOME/.ssh/id_rsa
-        git clone git@github.com:NetAppLabs/libnfs-rs.git
-        ln -sf $HOME/.ssh/nfs-rs $HOME/.ssh/id_rsa
-        git clone git@github.com:NetAppLabs/nfs-rs.git
-        rm $HOME/.ssh/id_rsa
     - name: Install non-rust non-node dependencies
       run: ./deps.sh
     - name: Use Node.js ${{ matrix.node-version }}
@@ -62,5 +41,5 @@ jobs:
     - name: Upload node module
       uses: actions/upload-artifact@v3
       with:
-        name: nfs-js.${{ matrix.os }}-x64-node${{ matrix.node-version }}.node
-        path: nfs-js.*.node
+        name: smb-js.${{ matrix.os }}-x64-node${{ matrix.node-version }}.node
+        path: smb-js.*.node
