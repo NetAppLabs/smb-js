@@ -58,7 +58,7 @@ sleep 1
 function kill_samba() {
     EXITCODE=$?
         echo "Stopping samba"
-        kill $SAMBA_PID
+        kill -9 $SAMBA_PID || true
     if [ $EXITCODE -ne 0 ]; then
         cat ${SAMBA_CONFIG_DIR}/smb.log
     fi
