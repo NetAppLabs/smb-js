@@ -79,18 +79,15 @@ elif [ "${OS}" == "Linux" ]; then
 fi
 
 
-if [ ! -d libsmb2 ]; then
-    git clone https://github.com/sahlberg/libsmb2.git libsmb2
-    if [ ! -f libsmb2/local-install/lib/libsmb2.a ]; then
-        pushd libsmb2
-        CURDIR="$(pwd)"
-        INSTALL_DIR="${CURDIR}/local-install"
-        mkdir -p "${INSTALL_DIR}"
-        chmod 775 ./bootstrap
-        ./bootstrap
-        ./configure --without-libkrb5 --prefix="${INSTALL_DIR}" --exec-prefix="${INSTALL_DIR}" CFLAGS='-fPIC -Wno-cast-align'
-        make
-        make install
-        popd
-    fi
+if [ ! -f libsmb2/local-install/lib/libsmb2.a ]; then
+     pushd libsmb2
+     CURDIR="$(pwd)"
+     INSTALL_DIR="${CURDIR}/local-install"
+     mkdir -p "${INSTALL_DIR}"
+     chmod 775 ./bootstrap
+     ./bootstrap
+     ./configure --without-libkrb5 --prefix="${INSTALL_DIR}" --exec-prefix="${INSTALL_DIR}" CFLAGS='-fPIC -Wno-cast-align'
+     make
+     make install
+     popd
 fi
