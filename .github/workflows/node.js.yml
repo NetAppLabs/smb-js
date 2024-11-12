@@ -13,10 +13,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  adeps-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Install samba
+      run: sudo apt-get -y install samba
+  adeps-macos:
+    runs-on: macos-latest
+    steps:
+    - name: Install samba
+      run: brew install samba  
   build:
-
     runs-on: ${{ matrix.os }}
-
     strategy:
       matrix:
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
@@ -25,6 +33,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v3
+    - uses: actions-rust-lang/setup-rust-toolchain@v1
     - name: Install non-rust non-node dependencies
       run: ./deps.sh
     - name: Use Node.js ${{ matrix.node-version }}
