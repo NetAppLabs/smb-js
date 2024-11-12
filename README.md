@@ -1,6 +1,6 @@
 # `@wasmin/smb-js`
 
-![https://github.com/NetAppLabs/smb-js/actions](https://github.com/NetAppLabs/smb-js/workflows/CI/badge.svg)
+![https://github.com/NetAppLabs/smb-js/actions](https://github.com/NetAppLabs/smb-js/actions/workflows/node.js.yml/badge.svg)
 
 > SMB filesystem implementation for JavaScript/TypeScript.
 
