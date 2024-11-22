@@ -1,13 +1,48 @@
+use core::fmt;
 use std::io::Result;
 use std::fmt::Debug;
 
 mod libsmb;
 mod mock;
+use enumflags2::{bitflags, BitFlags};
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Time {
     pub seconds: u32,
     pub nseconds: u64,
+}
+
+#[bitflags]
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[repr(u32)]
+pub enum SMBFileNotificationOperation {
+    Create      = 1<<1,
+    Open        = 1<<2,
+    Read        = 1<<3,
+    Write       = 1<<4,
+    Remove      = 1<<5,
+    Rename      = 1<<6,
+    ChAttr      = 1<<7,
+    RdAttr      = 1<<8,
+    Move        = 1<<9,
+    CloseWrite  = 1<<10,
+}
+
+pub type SMBFileNotificationOperationFlags = BitFlags<SMBFileNotificationOperation>;
+
+
+impl fmt::Display for SMBFileNotificationOperation {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", format!("{:?}", self).to_lowercase())
+    }
+}
+
+#[bitflags]
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[repr(u32)]
+pub enum SMBWatchMode {
+    Default,
+    Recursive
 }
 
 pub trait SMB: Debug + Send + Sync {
@@ -21,8 +56,19 @@ pub trait SMB: Debug + Send + Sync {
     fn unlink(&self, path: &str) -> Result<()>;
     fn open(&mut self, path: &str, flags: u32) -> Result<Box<dyn SMBFile>>;
     fn truncate(&self, path: &str, len: u64) -> Result<()>;
+    
+    fn watch(&self, path: &str, mode: SMBWatchMode, listen_events: SMBFileNotificationOperationFlags) -> Result<SMBFileNotificationBoxed>;
 }
 
+#[allow(dead_code)]
+#[derive(Debug, Clone)]
+pub struct SMBFileNotificationInformation {
+    pub path: String,
+    pub operation: SMBFileNotificationOperation
+}
+
+pub type SMBFileNotificationBoxed = Box<dyn SMBFileNotification>;
+pub trait SMBFileNotification: Debug + Iterator<Item = Result<SMBFileNotificationInformation>> {}
 pub trait SMBDirectory: Debug + Iterator<Item = Result<SMBDirEntry>> {}
 
 pub trait SMBFile: Debug {

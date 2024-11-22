@@ -18,6 +18,10 @@ export interface JsSmbRemoveOptions {
 export interface JsSmbCreateWritableOptions {
   keepExistingData: boolean
 }
+export interface JsSmbNotifyChange {
+  path: string
+  action: string
+}
 export declare class JsSmbDirectoryHandleEntries {
   [Symbol.asyncIterator]: AsyncIterableIterator<[string, JsSmbDirectoryHandle | JsSmbFileHandle]>
 }
@@ -50,6 +54,7 @@ export declare class JsSmbDirectoryHandle {
   getFileHandle(name: string, options?: JsSmbGetFileOptions): Promise<JsSmbFileHandle>
   removeEntry(name: string, options?: JsSmbRemoveOptions): Promise<void>
   resolve(possibleDescendant: JsSmbHandle): Promise<Array<string> | null>
+  watch(callback: (...args: any[]) => any): void
 }
 export declare class JsSmbFileHandle {
   readonly kind: 'file'

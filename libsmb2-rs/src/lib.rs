@@ -14,6 +14,68 @@ use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use bitflags::bitflags;
+
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct SmbChangeNotifyFlags: u16 {
+        const DEFAULT            = 0x0000;
+        const WATCH_TREE            = 0x0001;
+    }
+}
+
+bitflags! {
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct SmbChangeNotifyFileFilter: u32 {
+        const CHANGE_FILE_NAME      = 0x00000001;
+        const CHANGE_DIR_NAME       = 0x00000002;
+        const CHANGE_ATTRIBUTES     = 0x00000004;
+        const CHANGE_SIZE           = 0x00000008;
+        const CHANGE_LAST_WRITE     = 0x00000010;
+        const CHANGE_LAST_ACCESS    = 0x00000020;
+        const CHANGE_CREATION       = 0x00000040;
+        const CHANGE_EA             = 0x00000080;
+        const CHANGE_SECURITY       = 0x00000100;
+        const CHANGE_STREAM_NAME    = 0x00000200;
+        const CHANGE_STREAM_SIZE    = 0x00000400;
+        const CHANGE_STREAM_WRITE   = 0x00000800;
+    }
+}
+
+#[derive(Clone)]
+#[repr(u32)]
+pub enum SmbChangeNotifyAction {
+    Added = 1,
+    Removed,
+    Modified,
+    RenamedOldName,
+    RenamedNewName,
+    AddedStream,
+    RemovedStream,
+    ModifiedStream
+}
+
+
+impl SmbChangeNotifyAction {
+    fn from(action: u32) -> Result<SmbChangeNotifyAction> {
+        match action {
+            libsmb2_sys::SMB2_NOTIFY_CHANGE_FILE_ACTION_ADDED => Ok(SmbChangeNotifyAction::Added),
+            libsmb2_sys::SMB2_NOTIFY_CHANGE_FILE_ACTION_REMOVED => Ok(SmbChangeNotifyAction::Removed),
+            libsmb2_sys::SMB2_NOTIFY_CHANGE_FILE_ACTION_MODIFIED => Ok(SmbChangeNotifyAction::Modified),
+            libsmb2_sys::SMB2_NOTIFY_CHANGE_FILE_ACTION_RENAMED_OLD_NAME => Ok(SmbChangeNotifyAction::RenamedOldName),
+            libsmb2_sys::SMB2_NOTIFY_CHANGE_FILE_ACTION_RENAMED_NEW_NAME => Ok(SmbChangeNotifyAction::RenamedNewName),
+            libsmb2_sys::SMB2_NOTIFY_CHANGE_FILE_ACTION_ADDED_STREAM => Ok(SmbChangeNotifyAction::AddedStream),
+            libsmb2_sys::SMB2_NOTIFY_CHANGE_FILE_ACTION_REMOVED_STREAM => Ok(SmbChangeNotifyAction::RemovedStream),
+            libsmb2_sys::SMB2_NOTIFY_CHANGE_FILE_ACTION_MODIFIED_STREAM => Ok(SmbChangeNotifyAction::ModifiedStream),
+            _ => Err(Error::new(
+                ErrorKind::InvalidData,
+                format!("Unknown action type: {}", action),
+            )),
+        }
+    }
+}
+
 
 #[derive(Clone)]
 struct SmbPtr(Arc<Mutex<*mut smb2_context>>);
@@ -138,6 +200,58 @@ impl Drop for SmbFile {
     }
 }
 
+#[derive(Clone)]
+pub struct SmbNotifyChangeInformation {
+    smb: Arc<SmbPtr>,
+    info_handle: *mut smb2_file_notify_change_information,
+}
+
+#[derive(Clone)]
+pub struct NotifyChangeInformation {
+    pub path: String,
+    pub action: SmbChangeNotifyAction,
+}
+
+impl Drop for SmbNotifyChangeInformation {
+    fn drop(&mut self) {
+        if !self.info_handle.is_null() {
+            unsafe {
+                let ctx_ref = self.smb.0.lock().unwrap();
+                let ctx = *ctx_ref;
+                free_smb2_file_notify_change_information(ctx, self.info_handle);
+            }
+        }
+    }
+}
+
+impl SmbNotifyChangeInformation {
+
+    pub fn get_path(&self) -> Result<String> {
+        unsafe {
+            let c_path_ptr = (*self.info_handle).name;
+            let c_path_mptr = c_path_ptr as *mut i8;
+            let c_path = CString::from_raw(c_path_mptr);
+            let res_path = c_path.to_str();
+            match res_path{
+                Ok(path) => return Ok(path.to_owned()),
+                Err(_) => {
+                    return Err(Error::new(
+                        ErrorKind::InvalidData,
+                        format!("Error parsing path string:"),
+                    ))
+                }
+            }
+        }
+    }
+
+    pub fn get_action(&self) -> Result<SmbChangeNotifyAction> {
+        unsafe {
+            let act: u32 = (*self.info_handle).action;
+            return SmbChangeNotifyAction::from(act);
+        }
+    }
+
+}
 
 pub struct SmbUrl {
     url: *mut smb2_url,
@@ -244,6 +358,20 @@ impl Smb {
             })
         }
     }
+    
+    pub fn notify_change(&self, path: &Path, notify_flags: SmbChangeNotifyFlags, filter: SmbChangeNotifyFileFilter) -> Result<SmbNotifyChangeInformation> {
+        let path = self.get_resolved_path_cstr(path)?;
+        let ctx_ref = self.context.0.lock().unwrap();
+        let ctx = *ctx_ref;
+        unsafe {
+            let change_handle = smb2_notify_change(ctx, path.as_ptr(), notify_flags.bits(), filter.bits());
+            Ok(SmbNotifyChangeInformation {
+                smb: Arc::clone(&self.context),
+                info_handle: change_handle,
+            })
+        }
+    }
+
     /*
     pub fn getcwd(&self) -> Result<PathBuf> {
         let mut cwd = ptr::null();
@@ -364,7 +492,6 @@ impl Smb {
     */
 
     pub fn set_password(&self, password: &str) -> Result<()> {
-        //println!("smb2_set_password: {}", password);
         let password = CString::new(password.as_bytes())?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;
@@ -824,6 +951,38 @@ impl Iterator for SmbDirectory {
                 mtime_nsec: (stat).smb2_mtime_nsec,
                 ctime_nsec: (stat).smb2_ctime_nsec,
             }))
+        }
+    }
+}
+
+
+impl Iterator for SmbNotifyChangeInformation {
+    type Item = Result<NotifyChangeInformation>;
+    fn next(&mut self) -> Option<Self::Item> {
+        unsafe {
+
+            let info_handle = self.info_handle;
+            if info_handle.is_null() {
+                None
+            } else {
+
+                let file_path = CStr::from_ptr((*info_handle).name);
+                let int_action = (*info_handle).action;
+                let action = SmbChangeNotifyAction::from(int_action);
+                match action {
+                    Ok(act) => {
+                        self.info_handle = (*info_handle).next;
+                        Some(Ok(NotifyChangeInformation {
+                            path: file_path.to_string_lossy().into_owned(),
+                            action: act,
+                        }))
+                    },
+                    Err(_) => {
+                        None
+                    },
+                }
+
+            }
         }
     }
 }

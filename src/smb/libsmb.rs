@@ -3,10 +3,10 @@ use std::path::Path;
 use std::sync::{Arc, RwLock};
 use nix::sys::stat::Mode;
 use nix::fcntl::OFlag;
-use libsmb2_rs::Smb;
+use libsmb2_rs::{Smb, SmbChangeNotifyAction, SmbChangeNotifyFileFilter, SmbChangeNotifyFlags, SmbNotifyChangeInformation};
 use url::{Url};
 
-use super::{SMB, SMBStat64, SMBDirectory, SMBFile, SMBDirEntry, Result, Time};
+use super::{Result, SMBDirEntry, SMBDirectory, SMBFile, SMBFileNotificationInformation, SMBFileNotification, SMBFileNotificationBoxed, SMBFileNotificationOperation, SMBFileNotificationOperationFlags, SMBStat64, SMBWatchMode, Time, SMB};
 
 pub(super) struct SMBConnection {
     smb: Arc<RwLock<Smb>>,
@@ -21,10 +21,12 @@ impl SMBConnection {
         match pre_parse_url {
             Ok(mut purl) => {
                 let opasswd = purl.password();
-                if opasswd.is_some() {
-                    let p = opasswd.unwrap();
-                    let p_owned = p.to_owned();
-                    passwd = Some(p_owned);
+                match opasswd {
+                    Some(p) => {
+                        let p_owned = p.to_owned();
+                        passwd = Some(p_owned);    
+                    },
+                    None => {},
                 }
                 let _ = purl.set_password(None);
                 real_url = purl.to_string();
@@ -115,6 +117,101 @@ impl SMB for SMBConnection {
         let my_smb = self.smb.write().unwrap();
         my_smb.truncate(Path::new(smb_path), len)
     }
+    
+    fn watch(&self, path: &str, mode: super::SMBWatchMode, listen_events: super::SMBFileNotificationOperationFlags) -> Result<SMBFileNotificationBoxed> {
+        let smb_path = normalize_smb_path(path);
+        let my_smb = self.smb.write().unwrap();
+        let notify_flags = SmbChangeNotifyFlags::my_from(mode);
+        let notify_filter = SmbChangeNotifyFileFilter::my_from(listen_events);
+        let notify_change = my_smb.notify_change(Path::new(smb_path), notify_flags, notify_filter)?;
+        let ret = SMBFileNotificationBoxed::my_from(notify_change);
+        return Ok(ret);
+    }
+}
+
+pub trait MyFrom<T> {
+    fn my_from(value: T) -> Self;
+}
+
+impl MyFrom<SMBWatchMode> for SmbChangeNotifyFlags {
+    fn my_from(value: SMBWatchMode) -> Self {
+        match value {
+            SMBWatchMode::Default => {
+                SmbChangeNotifyFlags::DEFAULT
+            },
+            SMBWatchMode::Recursive => {
+                SmbChangeNotifyFlags::WATCH_TREE
+            },
+        }
+    }
+}
+
+impl MyFrom<SMBFileNotificationOperationFlags> for SmbChangeNotifyFileFilter {
+    fn my_from(value: SMBFileNotificationOperationFlags) -> Self {
+        let mut ret = SmbChangeNotifyFileFilter::empty();
+        if value.contains(SMBFileNotificationOperation::Create) {
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_CREATION;
+        }
+        if value.contains(SMBFileNotificationOperation::Write) {
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_LAST_WRITE;
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_STREAM_SIZE;
+        }
+        if value.contains(SMBFileNotificationOperation::Remove) {
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_LAST_ACCESS;
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_LAST_ACCESS;
+
+        }
+        if value.contains(SMBFileNotificationOperation::ChAttr) {
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_ATTRIBUTES;
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_LAST_ACCESS;
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_CREATION;
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_EA;
+        }
+        if value.contains(SMBFileNotificationOperation::Rename) {
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_FILE_NAME;
+            ret = ret | SmbChangeNotifyFileFilter::CHANGE_DIR_NAME;
+        }
+
+        return ret;
+    }
+}
+
+impl MyFrom<SmbChangeNotifyAction> for SMBFileNotificationOperation {
+    fn my_from(value: SmbChangeNotifyAction) -> Self {
+        match value {
+            SmbChangeNotifyAction::Added => {
+                return SMBFileNotificationOperation::Create;
+            },
+            SmbChangeNotifyAction::Removed => {
+                return SMBFileNotificationOperation::Remove;
+            },
+            SmbChangeNotifyAction::Modified => {
+                return SMBFileNotificationOperation::Write;
+            },
+            SmbChangeNotifyAction::RenamedOldName => {
+                return SMBFileNotificationOperation::Rename;
+            },
+            SmbChangeNotifyAction::RenamedNewName => {
+                return SMBFileNotificationOperation::Rename;
+            },
+            SmbChangeNotifyAction::AddedStream => {
+                return SMBFileNotificationOperation::Write;
+            },
+            SmbChangeNotifyAction::RemovedStream => {
+                return SMBFileNotificationOperation::Write;
+            },
+            SmbChangeNotifyAction::ModifiedStream => {
+                return SMBFileNotificationOperation::Write;
+            },
+        }
+    }
+}
+
+impl MyFrom<SmbNotifyChangeInformation> for SMBFileNotificationBoxed {
+    fn my_from(value: SmbNotifyChangeInformation) -> Self {
+        let not = SMBFileNotification2{notification: value };
+        return Box::new(not);
+    }
 }
 
 pub fn normalize_smb_path(path: &str) -> &str {
@@ -133,7 +230,8 @@ pub struct SMBDirectory2 {
     dir: libsmb2_rs::SmbDirectory,
 }
 
-impl SMBDirectory for SMBDirectory2 {}
+impl SMBDirectory for SMBDirectory2 {
+}
 
 impl Debug for SMBDirectory2 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -194,4 +292,30 @@ impl SMBFile for SMBFile2 {
     fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<u32> {
         self.file.pwrite(buffer, offset).map(|res| res as u32)
     }
+}
+
+
+pub struct SMBFileNotification2 {
+    notification: libsmb2_rs::SmbNotifyChangeInformation,
+}
+
+impl SMBFileNotification for SMBFileNotification2 {
+}
+
+impl Debug for SMBFileNotification2 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SMBFileNotification2").finish()
+    }
+}
+
+impl Iterator for SMBFileNotification2 {
+    type Item = Result<SMBFileNotificationInformation>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.notification.next().map(|res| res.map(|entry| SMBFileNotificationInformation{
+            path: entry.path,
+            operation: SMBFileNotificationOperation::my_from(entry.action),
+        }))
+    }
+
 }

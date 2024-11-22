@@ -3,7 +3,7 @@ use std::io::Error;
 use std::sync::{Arc, RwLock};
 use bytes::BufMut;
 
-use super::{SMB, SMBStat64, SMBDirectory, SMBFile, SMBDirEntry, SMBEntryType, Result, Time};
+use super::{Result, SMBDirEntry, SMBDirectory, SMBEntryType, SMBFile, SMBFileNotificationBoxed, SMBStat64, Time, SMB};
 use crate::get_parent_path_and_name;
 
 #[derive(Debug)]
@@ -121,6 +121,10 @@ impl SMB for SMBConnection {
         contents.resize(len as usize, 0);
         Ok(())
       }
+      
+    fn watch(&self, _path: &str, _mode: super::SMBWatchMode, _listen_events: super::SMBFileNotificationOperationFlags) -> Result<SMBFileNotificationBoxed> {
+        todo!("watch unimplemented for mock")
+    }
 }
 
 #[derive(Debug)]
@@ -131,7 +135,8 @@ pub struct SMBSDirectory2 {
     index: usize,
 }
 
-impl SMBDirectory for SMBSDirectory2 {}
+impl SMBDirectory for SMBSDirectory2 {
+}
 
 impl Iterator for SMBSDirectory2 {
     type Item = Result<SMBDirEntry>;

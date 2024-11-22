@@ -1,13 +1,14 @@
 #![deny(clippy::all)]
 
-use napi::{JsArrayBuffer, JsDataView, JsString, JsTypedArray, NapiRaw, bindgen_prelude::*};
+use enumflags2::BitFlag;
+use napi::{bindgen_prelude::*, threadsafe_function::{ErrorStrategy, ThreadSafeCallContext, ThreadsafeFunction, ThreadsafeFunctionCallMode}, JsArrayBuffer, JsDataView, JsString, JsTypedArray, NapiRaw};
 use napi_derive::napi;
 use nix::sys::stat::Mode;
 use send_wrapper::SendWrapper;
-use std::{path::Path, sync::{Arc, RwLock, RwLockWriteGuard}};
+use std::{path::Path, sync::{Arc, RwLock, RwLockWriteGuard}, thread};
 
 mod smb;
-use smb::{SMB, SMBEntryType};
+use smb::{SMBEntryType, SMBFileNotificationInformation, SMBFileNotification, SMBFileNotificationOperation, SMBWatchMode, SMB};
 
 /*
 
@@ -449,7 +450,7 @@ impl JsSmbDirectoryHandle {
 
   fn smb_entries(&self) -> Result<Vec<JsSmbHandle>> {
     let smb = &self.handle.smb;
-    let mut my_smb = smb.as_ref().unwrap().write().unwrap();
+    let mut my_smb = smb.as_ref().expect("error acquiring smb").write().unwrap();
     self.smb_entries_guarded(&mut my_smb)
   }
 
@@ -583,6 +584,54 @@ impl JsSmbDirectoryHandle {
   pub fn resolve(&self, possible_descendant: JsSmbHandle) -> AsyncTask<JsSmbDirectoryHandleResolve> {
     AsyncTask::new(JsSmbDirectoryHandleResolve{handle: JsSmbDirectoryHandle{handle: self.handle.clone(), kind: self.kind.clone(), name: self.name.clone(), _sym: false}, possible_descendant})
   }
+
+  #[napi]
+  pub fn watch(&self, callback: JsFunction) -> Result<()> {
+    let tsfn: ThreadsafeFunction<Result<JsSmbNotifyChange>, ErrorStrategy::Fatal> = callback
+        .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<JsSmbNotifyChange, Error>>| {
+            match ctx.value {
+              Ok(value) => {
+                Ok(vec![value])
+              },
+              Err(err) => {
+                Err(err)
+              },
+            }
+        })?;
+
+    let handle = self.handle.clone();
+    //spawn(async move  {
+    thread::spawn(move || {
+
+        fn watch_file_path(handle: &JsSmbHandle) -> Result<Vec<JsSmbNotifyChange>> {
+          let smb = &handle.smb;
+          let path = &handle.path;
+          let my_smb: RwLockWriteGuard<'_, Box<dyn SMB>> = smb.as_ref().unwrap().write().unwrap();
+          let watch_mode = SMBWatchMode::Recursive;
+          let listen_flags = SMBFileNotificationOperation::all();
+          
+          let res = my_smb.watch(path, watch_mode, listen_flags)?;  
+          Ok(res.into())
+        }
+
+        let run_in_loop = true;
+        
+        while run_in_loop {
+          let res_contents = watch_file_path(&handle);
+          match res_contents {
+            Ok(contents) => {
+              for item in contents.iter() {
+                let item_owned = item.to_owned();
+                tsfn.call(Ok(item_owned), ThreadsafeFunctionCallMode::NonBlocking);
+              }    
+            }
+            Err(_) => {}
+          }
+        }
+    });
+    Ok(())
+  }
+
 }
 
 impl From<JsSmbHandle> for JsSmbDirectoryHandle {
@@ -664,6 +713,30 @@ impl JsSmbFileHandle {
     let position = (!options.unwrap_or_default().keep_existing_data).then(|| 0);
     Ok(JsSmbWritableFileStream{handle: self.handle.clone(), position, locked: false})
   }
+}
+
+impl From<Box<dyn SMBFileNotification>> for Vec<JsSmbNotifyChange> {
+    fn from(value: Box<dyn SMBFileNotification>) -> Self {
+      let ret: Vec<JsSmbNotifyChange> = value.into_iter().map(|res| res.unwrap().into()).collect();
+      return ret;
+    }
+}
+
+impl From<SMBFileNotificationInformation> for JsSmbNotifyChange {
+    fn from(value: SMBFileNotificationInformation) -> Self {
+        let ret = JsSmbNotifyChange{
+          path: value.path,
+          action: value.operation.into(),
+        };
+        return ret;
+    }
+}
+
+impl From<SMBFileNotificationOperation> for std::string::String {
+    fn from(value: SMBFileNotificationOperation) -> Self {
+        let s = format!("{}", value);
+        return s;
+    }
 }
 
 impl From<JsSmbHandle> for JsSmbFileHandle {
@@ -1230,3 +1303,12 @@ fn is_array_buffer(obj: &Object) -> Result<bool> {
   Ok(obj.has_named_property(FIELD_BYTE_LENGTH)?
     && obj.get_named_property::<Unknown>(FIELD_BYTE_LENGTH)?.get_type()? == ValueType::Number)
 }
+
+
+#[derive(Clone)]
+#[napi(object)]
+pub struct JsSmbNotifyChange {
+  pub path: String,
+  pub action: String,
+}
+

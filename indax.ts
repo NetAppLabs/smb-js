@@ -140,6 +140,11 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
   * @deprecated Old property just for Chromium <=85. Use `.keys()`, `.values()`, `.entries()`, or the directory itself as an async iterable in the new API.
   */
   getEntries: SmbDirectoryHandle['values']
+
+
+  watch(callback: (...args: any[]) => any) {
+    return this._js.watch(callback)
+  }
  }
 
 export class SmbFileHandle extends SmbHandle implements FileSystemFileHandle {

@@ -60,6 +60,7 @@ class SmbDirectoryHandle extends SmbHandle {
         }
     }
     async getDirectoryHandle(name, options) {
+        //console.log("getDirectoryHandle: ", name);
         return new Promise(async (resolve, reject) => {
             await this._js.getDirectoryHandle(name, options)
                 .then((handle) => resolve(new SmbDirectoryHandle(handle)))
@@ -88,6 +89,9 @@ class SmbDirectoryHandle extends SmbHandle {
     }
     async resolve(possibleDescendant) {
         return this._js.resolve(possibleDescendant._jsh || possibleDescendant);
+    }
+    watch(callback) {
+        return this._js.watch(callback);
     }
 }
 exports.SmbDirectoryHandle = SmbDirectoryHandle;
@@ -139,13 +143,25 @@ class SmbWritableFileStream {
         });
     }
     async seek(position) {
-        return this._js.seek(position);
+        return new Promise(async (resolve, reject) => {
+            await this._js.seek(position)
+                .then(() => resolve())
+                .catch((reason) => reject(reason));
+        });
     }
     async truncate(size) {
-        return this._js.truncate(size);
+        return new Promise(async (resolve, reject) => {
+            await this._js.truncate(size)
+                .then(() => resolve())
+                .catch((reason) => reject(reason));
+        });
     }
     async close() {
-        return this._js.close();
+        return new Promise(async (resolve, reject) => {
+            await this._js.close()
+                .then(() => resolve())
+                .catch((reason) => reject(reason));
+        });
     }
     async abort(reason) {
         return new Promise(async (resolve, reject) => {
