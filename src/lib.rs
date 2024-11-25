@@ -1060,7 +1060,7 @@ impl JsSmbWritableFileStream {
   }
 
   #[napi(ts_return_type="Promise<void>")]
-  pub fn write(&'static mut self, #[napi(ts_arg_type="ArrayBuffer | TypedArray | DataView | Blob | String | string | {type: 'write' | 'seek' | 'truncate', data?: ArrayBuffer | TypedArray | DataView | Blob | String | string, position?: number, size?: number}")] data: Unknown) -> Result<AsyncTask<JsSmbWritableFileStreamWrite>> {
+  pub fn write(&'static mut self, #[napi(ts_arg_type="ArrayBuffer | ArrayBufferView | DataView | Blob | String | string | {type: 'write' | 'seek' | 'truncate', data?: ArrayBuffer | ArrayBufferView | DataView | Blob | String | string, position?: number, size?: number}")] data: Unknown) -> Result<AsyncTask<JsSmbWritableFileStreamWrite>> {
     let options = self.parse_write_input(data)?;
     Ok(AsyncTask::new(JsSmbWritableFileStreamWrite{stream: self, options}))
   }

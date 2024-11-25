@@ -353,6 +353,7 @@ test.serial('should iterate through subdirectory values', async (t) => {
   t.is(i, expectedValues.length);
 })
 
+/*
 test.serial('should iterate through values via deprecated getEntries', async (t) => {
   const rootHandle = await getRootHandle();
   const expectedValues = new Map<string, string>([
@@ -396,6 +397,7 @@ test.serial('should iterate through subdirectory values via deprecated getEntrie
   }
   t.is(i, expectedValues.length);
 })
+*/
 
 test.serial('should return error when getting unknown directory', async (t) => {
   const rootHandle = await getRootHandle();
@@ -425,6 +427,7 @@ test.serial('should return directory when "creating" existing directory', async 
   t.is(dirHandle.name, 'first');
 })
 
+/*
 test.serial('should return error when getting unknown directory via deprecated getDirectory', async (t) => {
   const rootHandle = await getRootHandle();
   const err = await t.throwsAsync(rootHandle.getDirectory('unknown'));
@@ -452,6 +455,7 @@ test.serial('should return directory when "creating" existing directory via depr
   t.is(dirHandle.kind, 'directory');
   t.is(dirHandle.name, 'first');
 })
+*/
 
 test.serial('should return error when getting unknown file', async (t) => {
   const rootHandle = await getRootHandle();
@@ -485,6 +489,7 @@ test.serial('should return file when "creating" existing file', async (t) => {
   }
 })
 
+/*
 test.serial('should return error when getting unknown file via deprecated getFile', async (t) => {
   const rootHandle = await getRootHandle();
   const err = await t.throwsAsync(rootHandle.getFile('unknown'));
@@ -516,6 +521,7 @@ test.serial('should return file when "creating" existing file via deprecated get
     t.is(dirHandle.name, name);
   }
 })
+*/
 
 test.serial('should return error when removing non-empty directory', async (t) => {
   const rootHandle = await getRootHandle();

@@ -143,25 +143,13 @@ class SmbWritableFileStream {
         });
     }
     async seek(position) {
-        return new Promise(async (resolve, reject) => {
-            await this._js.seek(position)
-                .then(() => resolve())
-                .catch((reason) => reject(reason));
-        });
+        return this._js.seek(position);
     }
     async truncate(size) {
-        return new Promise(async (resolve, reject) => {
-            await this._js.truncate(size)
-                .then(() => resolve())
-                .catch((reason) => reject(reason));
-        });
+        return this._js.truncate(size);
     }
     async close() {
-        return new Promise(async (resolve, reject) => {
-            await this._js.close()
-                .then(() => resolve())
-                .catch((reason) => reject(reason));
-        });
+        return this._js.close();
     }
     async abort(reason) {
         return new Promise(async (resolve, reject) => {

@@ -85,14 +85,14 @@ export declare class JsSmbWritableFileStream {
   write(
     data:
       | ArrayBuffer
-      | TypedArray
+      | ArrayBufferView
       | DataView
       | Blob
       | String
       | string
       | {
           type: 'write' | 'seek' | 'truncate'
-          data?: ArrayBuffer | TypedArray | DataView | Blob | String | string
+          data?: ArrayBuffer | ArrayBufferView | DataView | Blob | String | string
           position?: number
           size?: number
         },

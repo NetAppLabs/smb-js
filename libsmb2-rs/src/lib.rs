@@ -545,7 +545,6 @@ impl Smb {
     }
 
     pub fn opendir(&mut self, path: &Path) -> Result<SmbDirectory> {
-        //println!("opendir: {} ", &path.display());
         let cpath = self.get_resolved_path_cstr(path)?;
         let ctx_ref = self.context.0.lock().unwrap();
         let ctx = *ctx_ref;

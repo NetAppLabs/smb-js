@@ -206,25 +206,13 @@ export class SmbWritableFileStream implements SmbWritableFileStreamLock {
     });
   }
   async seek(position: number): Promise<void> {
-    return new Promise(async (resolve, reject) => {
-      await this._js.seek(position)
-        .then(() => resolve())
-        .catch((reason) => reject(reason));
-    });
+    return this._js.seek(position);
   }
   async truncate(size: number): Promise<void> {
-    return new Promise(async (resolve, reject) => {
-      await this._js.truncate(size)
-        .then(() => resolve())
-        .catch((reason) => reject(reason));
-    });
+    return this._js.truncate(size);
   }
   async close(): Promise<void> {
-    return new Promise(async (resolve, reject) => {
-      await this._js.close()
-        .then(() => resolve())
-        .catch((reason) => reject(reason));
-    });
+    return this._js.close();
   }
   async abort(reason: string): Promise<void> {
     return new Promise(async (resolve, reject) => {
