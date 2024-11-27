@@ -4,9 +4,15 @@ use std::sync::{Arc, RwLock};
 use nix::sys::stat::Mode;
 use nix::fcntl::OFlag;
 use libsmb2_rs::{Smb, SmbChangeNotifyAction, SmbChangeNotifyFileFilter, SmbChangeNotifyFlags, SmbNotifyChangeInformation};
-use url::{Url};
+use url::Url;
 
 use super::{Result, SMBDirEntry, SMBDirectory, SMBFile, SMBFileNotificationInformation, SMBFileNotification, SMBFileNotificationBoxed, SMBFileNotificationOperation, SMBFileNotificationOperationFlags, SMBStat64, SMBWatchMode, Time, SMB};
+
+macro_rules! using_rwlock {
+    ( $rwlock:expr ) => {
+      $rwlock.write().unwrap()
+    };
+}  
 
 pub(super) struct SMBConnection {
     smb: Arc<RwLock<Smb>>,
@@ -15,7 +21,7 @@ pub(super) struct SMBConnection {
 impl SMBConnection {
     pub(super) fn connect(url: String) -> Result<Box<dyn SMB>> {
         let mut real_url = url;
-        let mut smb = Smb::new().unwrap();
+        let mut smb = Smb::new()?;
         let mut passwd: Option<String> = None;
         let pre_parse_url = Url::parse(real_url.as_str());
         match pre_parse_url {
@@ -53,13 +59,13 @@ impl Debug for SMBConnection {
 
 impl SMB for SMBConnection {
     /*fn access(&self, path: &str, mode: u32) -> Result<()> {
-        let my_smb = self.smb.write().unwrap();
+        let my_smb = using_rwlock!(self.smb);
         my_smb.access(Path::new(path), mode as i32).map(|_| ())
     }*/
 
     fn stat64(&self, path: &str) -> Result<SMBStat64> {
         let smb_path = normalize_smb_path(path);
-        let my_smb = self.smb.write().unwrap();
+        let my_smb = using_rwlock!(self.smb);
         my_smb.stat64(Path::new(smb_path)).map(|res| SMBStat64{
             ino: res.smb2_ino,
             nlink: res.smb2_nlink.into(),
@@ -75,52 +81,52 @@ impl SMB for SMBConnection {
 
     fn opendir(&mut self, path: &str) -> Result<Box<dyn SMBDirectory>> {
         let smb_path = normalize_smb_path(path);
-        let mut my_smb = self.smb.write().unwrap();
+        let mut my_smb = using_rwlock!(self.smb);
         let dir = my_smb.opendir(Path::new(smb_path))?;
         Ok(Box::new(SMBDirectory2{dir}))
     }
 
     fn mkdir(&self, path: &str, _mode: u32) -> Result<()> { // FIXME: mode
         let smb_path = normalize_smb_path(path);
-        let my_smb = self.smb.write().unwrap();
+        let my_smb = using_rwlock!(self.smb);
         my_smb.mkdir(Path::new(smb_path))
     }
 
     fn create(&mut self, path: &str, flags: u32, mode: u32) -> Result<Box<dyn SMBFile>> {
         let smb_path = normalize_smb_path(path);
-        let mut my_smb = self.smb.write().unwrap();
+        let mut my_smb = using_rwlock!(self.smb);
         let file = my_smb.create(Path::new(smb_path), OFlag::from_bits_truncate(flags as i32), Mode::from_bits_truncate((mode as u16).into()))?;
         Ok(Box::new(SMBFile2{file}))
     }
 
     fn rmdir(&self, path: &str) -> Result<()> {
         let smb_path = normalize_smb_path(path);
-        let my_smb = self.smb.write().unwrap();
+        let my_smb = using_rwlock!(self.smb);
         my_smb.rmdir(Path::new(smb_path))
     }
 
     fn unlink(&self, path: &str) -> Result<()> {
         let smb_path = normalize_smb_path(path);
-        let my_smb = self.smb.write().unwrap();
+        let my_smb = using_rwlock!(self.smb);
         my_smb.unlink(Path::new(smb_path))
     }
 
     fn open(&mut self, path: &str, flags: u32) -> Result<Box<dyn SMBFile>> {
         let smb_path = normalize_smb_path(path);
-        let mut my_smb = self.smb.write().unwrap();
+        let mut my_smb = using_rwlock!(self.smb);
         let file = my_smb.open(Path::new(smb_path), OFlag::from_bits_truncate(flags as i32))?;
         Ok(Box::new(SMBFile2{file}))
     }
 
     fn truncate(&self, path: &str, len: u64) -> Result<()> {
         let smb_path = normalize_smb_path(path);
-        let my_smb = self.smb.write().unwrap();
+        let my_smb = using_rwlock!(self.smb);
         my_smb.truncate(Path::new(smb_path), len)
     }
     
     fn watch(&self, path: &str, mode: super::SMBWatchMode, listen_events: super::SMBFileNotificationOperationFlags) -> Result<SMBFileNotificationBoxed> {
         let smb_path = normalize_smb_path(path);
-        let my_smb = self.smb.write().unwrap();
+        let my_smb = using_rwlock!(self.smb);
         let notify_flags = SmbChangeNotifyFlags::my_from(mode);
         let notify_filter = SmbChangeNotifyFileFilter::my_from(listen_events);
         let notify_change = my_smb.notify_change(Path::new(smb_path), notify_flags, notify_filter)?;
@@ -244,8 +250,7 @@ impl Iterator for SMBDirectory2 {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.dir.next().map(|res| res.map(|entry| SMBDirEntry{
-            //path: normalize_smb_path(entry.path.into_os_string().into_string().unwrap().as_str()).into(),
-            path: entry.path.into_os_string().into_string().unwrap(),
+            path: entry.path.display().to_string(),
             inode: entry.inode,
             d_type: (entry.d_type as u32).into(),
             size: entry.size,

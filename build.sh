@@ -2,6 +2,8 @@
 
 set -e
 
+ARG="$1"
+
 ./deps.sh
 
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
@@ -18,4 +20,8 @@ export LD_LIBRARY_PATH=${LIBSMB_LIB_PATH}:$LD_LIBRARY_PATH
 
 export RUST_BACKTRACE=1
 
-yarn build-napi
+if [ "$ARG" == "test" ]; then
+  cargo test
+else
+  yarn build-napi
+fi

@@ -52,8 +52,16 @@ fn main() {
     .expect("Unable to generate bindings");
 
     // Write the bindings to the $OUT_DIR/bindings.rs file.
-    let out_path = PathBuf::from(env::var("OUT_DIR").unwrap());
-    bindings
-        .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
+    let out_path_if_any = env::var("OUT_DIR");
+    match out_path_if_any {
+        Ok(out_path) => {
+            let out_pathbuf = PathBuf::from(out_path);
+            bindings
+                .write_to_file(out_pathbuf.join("bindings.rs"))
+                .expect("Couldn't write bindings!");
+        },
+        Err(_) => {
+            panic!("Unble to generate bindings, please set OUT_DIR environment variable")
+        },
+    }
 }

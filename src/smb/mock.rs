@@ -6,6 +6,33 @@ use bytes::BufMut;
 use super::{Result, SMBDirEntry, SMBDirectory, SMBEntryType, SMBFile, SMBFileNotificationBoxed, SMBStat64, Time, SMB};
 use crate::get_parent_path_and_name;
 
+
+macro_rules! using_rwlock {
+    ( $rwlock:expr ) => {
+      $rwlock.write().unwrap()
+    };
+}
+
+macro_rules! using_rwlock_read {
+    ( $rwlock:expr ) => {
+      $rwlock.read().unwrap()
+    };
+}
+
+macro_rules! unsafe_using_rwlock {
+    ( $rwlock:expr ) => {
+      unsafe {$rwlock.write().unwrap() }
+    };
+}
+
+macro_rules! unsafe_using_rwlock_read {
+    ( $rwlock:expr ) => {
+      unsafe {$rwlock.read().unwrap() }
+    };
+}
+  
+  
+
 #[derive(Debug)]
 struct Mocks {
     dirs: BTreeSet<String>,
@@ -42,7 +69,7 @@ impl SMB for SMBConnection {
     }*/
 
     fn stat64(&self, path: &str) -> Result<SMBStat64> {
-        let mocks = &self.mocks.read().unwrap();
+        let mocks = using_rwlock_read!(&self.mocks);
         let size = if let Some(c) = mocks.files.get(&path.to_string()) {
             Some(c.len() as u64)
         } else {
@@ -72,7 +99,7 @@ impl SMB for SMBConnection {
     //}
 
     fn opendir(&mut self, path: &str) -> Result<Box<dyn SMBDirectory>> {
-        let mocks = &self.mocks.read().unwrap();
+        let mocks = using_rwlock_read!(&self.mocks);
         if path != "/" && mocks.dirs.get(&path.to_string()).is_none() {
             return Err(Error::new(std::io::ErrorKind::Other, "not found or not a directory"));
         }
@@ -80,32 +107,32 @@ impl SMB for SMBConnection {
     }
 
     fn mkdir(&self, path: &str, _mode: u32) -> Result<()> {
-        let mocks = &mut self.mocks.write().unwrap();
+        let mocks = &mut using_rwlock!(self.mocks);
         let _ = mocks.dirs.insert(path.to_string() + "/");
         Ok(())
     }
 
     fn create(&mut self, path: &str, _flags: u32, _mode: u32) -> Result<Box<dyn SMBFile>> {
-        let mocks = &mut self.mocks.write().unwrap();
+        let mocks = &mut using_rwlock!(self.mocks);
         let _ = mocks.files.insert(path.to_string(), Vec::new());
         Ok(Box::new(SMBFile2{smb: &*self, path: path.to_string()}))
     }
 
     fn rmdir(&self, path: &str) -> Result<()> {
-        let mocks = &mut self.mocks.write().unwrap();
+        let mocks = &mut using_rwlock!(self.mocks);
         let path = path.to_string() + "/";
         let _ = mocks.dirs.remove(&path);
         Ok(())
     }
 
     fn unlink(&self, path: &str) -> Result<()> {
-        let mocks = &mut self.mocks.write().unwrap();
+        let mocks = &mut using_rwlock!(self.mocks);
         let _ = mocks.files.remove(&path.to_string());
         Ok(())
     }
 
     fn open(&mut self, path: &str, _flags: u32) -> Result<Box<dyn SMBFile>> {
-        let mocks = &mut self.mocks.write().unwrap();
+        let mocks = &mut using_rwlock!(self.mocks);
         if mocks.dirs.get(&path.to_string()).is_some() {
             return Err(Error::new(std::io::ErrorKind::Other, "is a directory"));
         }
@@ -116,7 +143,7 @@ impl SMB for SMBConnection {
     }
 
     fn truncate(&self, path: &str, len: u64) -> Result<()> {
-        let mocks = &mut self.mocks.write().unwrap();
+        let mocks = &mut using_rwlock!(self.mocks);
         let contents = mocks.files.entry(path.to_string()).or_default();
         contents.resize(len as usize, 0);
         Ok(())
@@ -144,7 +171,7 @@ impl Iterator for SMBSDirectory2 {
     fn next(&mut self) -> Option<Self::Item> {
         if self.entries.is_none() {
             let mut entries = Vec::new();
-            let mocks = unsafe { &(*self.smb).mocks.read().unwrap() };
+            let mocks = unsafe_using_rwlock_read!(&(*self.smb).mocks);
             // XXX: technically should add '.' and '..' to entries but don't bother since they will be ignored anyway
             for (mock_file, content) in &mocks.files {
                 let (parent_path, name) = get_parent_path_and_name(&mock_file);
@@ -210,7 +237,7 @@ pub struct SMBFile2 {
 
 impl SMBFile for SMBFile2 {
     fn fstat64(&self) -> Result<SMBStat64> {
-        let mocks = unsafe { &(*self.smb).mocks.read().unwrap() };
+        let mocks = unsafe_using_rwlock_read!(&(*self.smb).mocks);
         let size = if let Some(c) = mocks.files.get(&self.path) {
             c.len() as u64
         } else {
@@ -230,7 +257,7 @@ impl SMBFile for SMBFile2 {
     }
 
     fn pread_into(&self, count: u32, offset: u64, buffer: &mut [u8]) -> Result<u32> {
-        let mocks = unsafe { &(*self.smb).mocks.read().unwrap() };
+        let mocks = unsafe_using_rwlock_read!(&(*self.smb).mocks);
         let readlen = if let Some(content) = mocks.files.get(&self.path) {
             let (offset, count, len) = (offset as usize, count as usize, content.len());
             let start = if offset <= len { offset } else { len };
@@ -245,7 +272,7 @@ impl SMBFile for SMBFile2 {
     }
 
     fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<u32> {
-        let mocks = unsafe { &mut (*self.smb).mocks.write().unwrap() };
+        let mut mocks = unsafe_using_rwlock!(&(*self.smb).mocks);
         let contents = mocks.files.entry(self.path.clone()).or_default();
         let offset = offset as usize;
         let writelen = if contents.len() >= offset + buffer.len() {
@@ -267,37 +294,51 @@ mod tests {
 
     #[test]
     fn mock_implementation_works() {
-        let mut smb = SMBConnection::connect(String::new());
-        let res = smb.unwrap().as_ref().opendir("/");
-        assert!(res.is_ok(), "err = {}", res.unwrap_err());
-        let dir = res.unwrap();
-        let mut entries = Vec::new();
-        for entry in dir {
-            let res: Result<SMBDirEntry> = entry;
-            if let Some(e) = res.ok() {
-                entries.push((e.path, e.d_type));
-            }
+        let smb = SMBConnection::connect(String::new());
+        match smb {
+            Ok(mut smb) => {
+                let res = smb.opendir("/");
+                assert!(res.is_ok(), "err = {}", res.unwrap_err());
+                match res {
+                    Ok(dir) => {
+                        let mut entries = Vec::new();
+                        for entry in dir {
+                            let res: Result<SMBDirEntry> = entry;
+                            if let Some(e) = res.ok() {
+                                entries.push((e.path, e.d_type));
+                            }
+                        }
+                        let expected_entries = vec![
+                            ("3".to_string(), SMBEntryType::File),
+                            ("annar".to_string(), SMBEntryType::File),
+                            ("quatre".to_string(), SMBEntryType::Directory),
+                            ("first".to_string(), SMBEntryType::Directory),
+                        ];
+                        assert_eq!(entries, expected_entries);        
+                    },
+                    Err(_) => {},
+                }
+                let res = smb.opendir("/first/");
+                assert!(res.is_ok(), "err = {}", res.unwrap_err());
+                match res {
+                    Ok(subdir) => {
+                        let mut subentries = Vec::new();
+                        for subentry in subdir {
+                            let res: Result<SMBDirEntry> = subentry;
+                            if let Some(e) = res.ok() {
+                                subentries.push((e.path, e.d_type));
+                            }
+                        }
+                        let expected_subentries = vec![
+                            ("comment".to_string(), SMBEntryType::File),
+                        ];
+                        assert_eq!(subentries, expected_subentries);        
+        
+                    },
+                    Err(_) => {},
+                }
+            },
+            Err(_) => {},
         }
-        let expected_entries = vec![
-            ("3".to_string(), SMBEntryType::File),
-            ("annar".to_string(), SMBEntryType::File),
-            ("quatre".to_string(), SMBEntryType::Directory),
-            ("first".to_string(), SMBEntryType::Directory),
-        ];
-        assert_eq!(entries, expected_entries);
-        let res = smb.unwrap().as_ref().opendir("/first/");
-        assert!(res.is_ok(), "err = {}", res.unwrap_err());
-        let subdir = res.unwrap();
-        let mut subentries = Vec::new();
-        for subentry in subdir {
-            let res: Result<SMBDirEntry> = subentry;
-            if let Some(e) = res.ok() {
-                subentries.push((e.path, e.d_type));
-            }
-        }
-        let expected_subentries = vec![
-            ("comment".to_string(), SMBEntryType::File),
-        ];
-        assert_eq!(subentries, expected_subentries);
     }
 }

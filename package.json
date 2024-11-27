@@ -60,7 +60,9 @@
     "format:rs": "cargo fmt",
     "lint": "eslint . -c ./.eslintrc.yml",
     "prepublishOnly": "napi prepublish -t npm",
-    "test": "./scripts/test.sh",
+    "test": "npm run test-cargo && npm run test-sh",
+    "test-sh": "./scripts/test.sh",
+    "test-cargo": "./build.sh test",
     "test-ava": "ava",
     "version": "napi version"
   },

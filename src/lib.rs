@@ -136,6 +136,7 @@ const WRITE_TYPE_SEEK: &str = "seek";
 const WRITE_TYPE_TRUNCATE: &str = "truncate";
 
 const DIR_ROOT: &str = "/";
+
 const DIR_CURRENT: &str = ".";
 const DIR_PARENT: &str = "..";
 
@@ -147,6 +148,12 @@ const JS_TYPE_WRITABLE_STREAM: &str = "WritableStream";
 const JS_TYPE_WRITABLE_STREAM_DEFAULT_WRITER: &str = "WritableStreamDefaultWriter";
 
 const READABLE_STREAM_SOURCE_TYPE_BYTES: &str = "bytes";
+
+macro_rules! using_rwlock {
+  ( $rwlock:expr ) => {
+    $rwlock.as_ref().expect("error acquiring smb").write().unwrap()
+  };
+}
 
 #[napi(iterator)]
 pub struct JsSmbDirectoryHandleEntries {
@@ -348,7 +355,7 @@ impl JsSmbHandle {
   #[napi]
   pub async fn query_permission(&self, _perm: JsSmbHandlePermissionDescriptor) -> Result<String> {
     /*if let Some(smb) = &self.smb {
-      let my_smb = smb.write().unwrap();
+      let my_smb = using_rwlock!(smb);
       let smb_stat = my_smb.stat64(self.path.as_str())?;
       let perm_u64 = perm.to_u64(self.kind.as_str());
       if smb_stat.mode & perm_u64 == perm_u64 {
@@ -366,7 +373,7 @@ impl JsSmbHandle {
   #[napi]
   pub async fn request_permission(&self, perm: JsSmbHandlePermissionDescriptor) -> Result<String> {
     /*if let Some(smb) = &self.smb {
-      let my_smb = smb.write().unwrap();
+      let my_smb = using_rwlock!(smb);
       let smb_stat = my_smb.stat64(self.path.as_str())?;
       let perm_u64 = perm.to_u64(self.kind.as_str());
       if smb_stat.mode & perm_u64 == perm_u64 {
@@ -416,13 +423,14 @@ pub struct JsSmbDirectoryHandle {
 impl JsSmbDirectoryHandle {
 
   #[napi(constructor)]
-  pub fn open(url: String) -> Result<Self> {
+  pub fn new(url: String) -> Result<Self> {
     let open_res = JsSmbHandle::open(url);
     match open_res {
       Ok(op) => {
         return Ok(op.into());
       },
       Err(e) => {
+        println!("err: {:?}", e);
         return Err(e.into())
       },
     }
@@ -450,7 +458,7 @@ impl JsSmbDirectoryHandle {
 
   fn smb_entries(&self) -> Result<Vec<JsSmbHandle>> {
     let smb = &self.handle.smb;
-    let mut my_smb = smb.as_ref().expect("error acquiring smb").write().unwrap();
+    let mut my_smb = using_rwlock!(smb);
     self.smb_entries_guarded(&mut my_smb)
   }
 
@@ -503,7 +511,7 @@ impl JsSmbDirectoryHandle {
     }
     let path = format_dir_path(&self.handle.path, &name);
     let smb = &self.handle.smb;
-    let my_smb = smb.as_ref().unwrap().write().unwrap();
+    let my_smb = using_rwlock!(smb);
     let _ = my_smb.mkdir(path.trim_end_matches('/'), 0o775)?;
     Ok(JsSmbHandle{smb: self.handle.smb.clone(), path, kind: KIND_DIRECTORY.into(), name}.into())
   }
@@ -523,14 +531,14 @@ impl JsSmbDirectoryHandle {
     }
     let path = format_file_path(&self.handle.path, &name);
     let smb = &self.handle.smb;
-    let mut my_smb = smb.as_ref().unwrap().write().unwrap();
+    let mut my_smb = using_rwlock!(smb);
     let _ = my_smb.create(path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32, (Mode::S_IRUSR | Mode::S_IWUSR | Mode::S_IRGRP | Mode::S_IWGRP | Mode::S_IROTH | Mode::S_IWOTH).bits() as u32)?; // XXX: change mode value to 0o664?
     Ok(JsSmbHandle{smb: self.handle.smb.clone(), path, kind: KIND_FILE.into(), name}.into())
   }
 
   fn smb_remove(&self, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
     let smb = &self.handle.smb;
-    let mut my_smb = smb.as_ref().unwrap().write().unwrap();
+    let mut my_smb = using_rwlock!(smb);
     self.smb_remove_guarded(&mut my_smb, entry, recursive)
   }
 
@@ -606,7 +614,7 @@ impl JsSmbDirectoryHandle {
         fn watch_file_path(handle: &JsSmbHandle) -> Result<Vec<JsSmbNotifyChange>> {
           let smb = &handle.smb;
           let path = &handle.path;
-          let my_smb: RwLockWriteGuard<'_, Box<dyn SMB>> = smb.as_ref().unwrap().write().unwrap();
+          let my_smb = using_rwlock!(smb);
           let watch_mode = SMBWatchMode::Recursive;
           let listen_flags = SMBFileNotificationOperation::all();
           
@@ -703,7 +711,7 @@ impl JsSmbFileHandle {
     let path = Path::new(self.handle.path.as_str());
     let type_ = mime_guess::from_path(path).first_raw().unwrap_or(MIME_TYPE_UNKNOWN).into();
     let smb = &self.handle.smb;
-    let my_smb = smb.as_ref().unwrap().write().unwrap();
+    let my_smb = using_rwlock!(smb);
     let smb_stat = my_smb.stat64(self.handle.path.as_str())?;
     Ok(JsSmbFile{handle: self.handle.clone(), size: smb_stat.size as i64, type_, last_modified: (smb_stat.mtime * 1000) as i64, name: self.name.clone()})
   }
@@ -717,7 +725,13 @@ impl JsSmbFileHandle {
 
 impl From<Box<dyn SMBFileNotification>> for Vec<JsSmbNotifyChange> {
     fn from(value: Box<dyn SMBFileNotification>) -> Self {
-      let ret: Vec<JsSmbNotifyChange> = value.into_iter().map(|res| res.unwrap().into()).collect();
+      let ret: Vec<JsSmbNotifyChange> = value.into_iter().filter_map(|res| 
+        match res {
+            Ok(res) => Some(res.into()),
+            Err(_) => None,
+        }
+      )
+      .collect();
       return ret;
     }
 }
@@ -813,7 +827,7 @@ impl JsSmbFile {
 
   fn smb_bytes(&self) -> Result<Vec<u8>> {
     let smb = &self.handle.smb;
-    let mut my_smb = smb.as_ref().unwrap().write().unwrap();
+    let mut my_smb = using_rwlock!(smb);
     let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
     let smb_stat = smb_file.fstat64()?;
     let buffer = &mut vec![0u8; smb_stat.size as usize];
@@ -823,7 +837,7 @@ impl JsSmbFile {
 
   #[napi]
   pub async fn text(&self) -> Result<String> {
-    Ok(std::str::from_utf8(&self.smb_bytes()?).unwrap().into())
+    Ok(std::str::from_utf8(&self.smb_bytes()?).unwrap_or_default().into())
   }
 }
 
@@ -1044,7 +1058,7 @@ impl JsSmbWritableFileStream {
 
   fn smb_write(&mut self, bytes: &[u8]) -> Result<Undefined> {
     let smb = &self.handle.smb;
-    let mut my_smb: RwLockWriteGuard<'_, Box<dyn SMB>> = smb.as_ref().unwrap().write().unwrap();
+    let mut my_smb = using_rwlock!(smb);
     //let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
     let mut flags = nix::fcntl::OFlag::O_RDWR;
     flags.insert(nix::fcntl::OFlag::O_SYNC);
@@ -1091,7 +1105,7 @@ impl JsSmbWritableFileStream {
 
   fn smb_truncate(&mut self, size: i64) -> Result<Undefined> {
     let smb = &self.handle.smb;
-    let my_smb: RwLockWriteGuard<'_, Box<dyn SMB>> = smb.as_ref().unwrap().write().unwrap();
+    let my_smb = using_rwlock!(smb);
     let smb_stat = my_smb.stat64(self.handle.path.as_str())?;
     my_smb.truncate(self.handle.path.as_str(), size as u64)?;
     let size_before = smb_stat.size as i64;
@@ -1268,7 +1282,7 @@ impl Task for JsSmbWritableStreamWrite {
 }
 
 fn get_parent_path_and_name(path: &String) -> (String, String) {
-  path.rsplit_once('/').map(|res| (res.0.to_string() + "/", res.1.to_string())).unwrap()
+  path.rsplit_once('/').map(|res| (res.0.to_string() + "/", res.1.to_string())).unwrap_or_default()
 }
 
 fn format_dir_path(parent_path: &String, name: &String) -> String {
