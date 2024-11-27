@@ -15,7 +15,7 @@ pub struct Time {
 #[bitflags]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(u32)]
-pub enum SMBFileNotificationOperation {
+pub enum VFSFileNotificationOperation {
     Create      = 1<<1,
     Open        = 1<<2,
     Read        = 1<<3,
@@ -28,10 +28,10 @@ pub enum SMBFileNotificationOperation {
     CloseWrite  = 1<<10,
 }
 
-pub type SMBFileNotificationOperationFlags = BitFlags<SMBFileNotificationOperation>;
+pub type VFSFileNotificationOperationFlags = BitFlags<VFSFileNotificationOperation>;
 
 
-impl fmt::Display for SMBFileNotificationOperation {
+impl fmt::Display for VFSFileNotificationOperation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", format!("{:?}", self).to_lowercase())
     }
@@ -40,45 +40,45 @@ impl fmt::Display for SMBFileNotificationOperation {
 #[bitflags]
 #[derive(Copy, Clone, Debug, PartialEq)]
 #[repr(u32)]
-pub enum SMBWatchMode {
+pub enum VFSWatchMode {
     Default,
     Recursive
 }
 
-pub trait SMB: Debug + Send + Sync {
+pub trait VFS: Debug + Send + Sync {
     //fn access(&self, path: &str, mode: u32) -> Result<()>;
-    fn stat64(&self, path: &str) -> Result<SMBStat64>;
+    fn stat(&self, path: &str) -> Result<VFSStat>;
     //fn lchmod(&self, path: &str, mode: u32) -> Result<()>;
-    fn opendir(&mut self, path: &str) -> Result<Box<dyn SMBDirectory>>;
+    fn opendir(&mut self, path: &str) -> Result<Box<dyn VFSDirectory>>;
     fn mkdir(&self, path: &str, mode: u32) -> Result<()>;
-    fn create(&mut self, path: &str, flags: u32, mode: u32) -> Result<Box<dyn SMBFile>>;
+    fn create(&mut self, path: &str, flags: u32, mode: u32) -> Result<Box<dyn VFSFile>>;
     fn rmdir(&self, path: &str) -> Result<()>;
     fn unlink(&self, path: &str) -> Result<()>;
-    fn open(&mut self, path: &str, flags: u32) -> Result<Box<dyn SMBFile>>;
+    fn open(&mut self, path: &str, flags: u32) -> Result<Box<dyn VFSFile>>;
     fn truncate(&self, path: &str, len: u64) -> Result<()>;
     
-    fn watch(&self, path: &str, mode: SMBWatchMode, listen_events: SMBFileNotificationOperationFlags) -> Result<SMBFileNotificationBoxed>;
+    fn watch(&self, path: &str, mode: VFSWatchMode, listen_events: VFSFileNotificationOperationFlags) -> Result<VFSFileNotificationBoxed>;
 }
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct SMBFileNotificationInformation {
+pub struct VFSFileNotificationInformation {
     pub path: String,
-    pub operation: SMBFileNotificationOperation
+    pub operation: VFSFileNotificationOperation
 }
 
-pub type SMBFileNotificationBoxed = Box<dyn SMBFileNotification>;
-pub trait SMBFileNotification: Debug + Iterator<Item = Result<SMBFileNotificationInformation>> {}
-pub trait SMBDirectory: Debug + Iterator<Item = Result<SMBDirEntry>> {}
+pub type VFSFileNotificationBoxed = Box<dyn VFSFileNotification>;
+pub trait VFSFileNotification: Debug + Iterator<Item = Result<VFSFileNotificationInformation>> {}
+pub trait VFSDirectory: Debug + Iterator<Item = Result<VFSDirEntry>> {}
 
-pub trait SMBFile: Debug {
-    fn fstat64(&self) -> Result<SMBStat64>;
+pub trait VFSFile: Debug {
+    fn fstat(&self) -> Result<VFSStat>;
     fn pread_into(&self, count: u32, offset: u64, buffer: &mut [u8]) -> Result<u32>;
     fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<u32>;
 }
 
 #[derive(Clone, Debug, PartialEq)]
-pub enum SMBEntryType {
+pub enum VFSEntryType {
     Block,
     Character,
     Directory,
@@ -88,7 +88,7 @@ pub enum SMBEntryType {
     Socket,
 }
 
-impl From<u32> for SMBEntryType {
+impl From<u32> for VFSEntryType {
     fn from(val: u32) -> Self {
         match val {
             0 => Self::Block,
@@ -105,10 +105,10 @@ impl From<u32> for SMBEntryType {
 
 #[allow(dead_code)]
 #[derive(Debug, Clone)]
-pub struct SMBDirEntry {
+pub struct VFSDirEntry {
     pub path: String,
     pub inode: u64,
-    pub d_type: SMBEntryType,
+    pub d_type: VFSEntryType,
     pub size: u64,
     pub atime: Time,
     pub mtime: Time,
@@ -121,7 +121,7 @@ pub struct SMBDirEntry {
 
 #[allow(dead_code)]
 #[derive(Debug, Copy, Clone)]
-pub struct SMBStat64 {
+pub struct VFSStat {
   pub ino: u64,
   pub nlink: u64,
   pub size: u64,
@@ -133,7 +133,7 @@ pub struct SMBStat64 {
   pub ctime_nsec: u64,
 }
 
-pub(crate) fn connect(url: String) -> Result<Box<dyn SMB>> {
+pub(crate) fn connect(url: String) -> Result<Box<dyn VFS>> {
     if std::env::var("TEST_USING_MOCKS").is_ok() {
         mock::SMBConnection::connect(url)
     } else {

@@ -3,7 +3,7 @@ use std::io::Error;
 use std::sync::{Arc, RwLock};
 use bytes::BufMut;
 
-use super::{Result, SMBDirEntry, SMBDirectory, SMBEntryType, SMBFile, SMBFileNotificationBoxed, SMBStat64, Time, SMB};
+use super::{Result, VFSDirEntry, VFSDirectory, VFSEntryType, VFSFile, VFSFileNotificationBoxed, VFSStat, Time, VFS};
 use crate::get_parent_path_and_name;
 
 
@@ -32,7 +32,7 @@ pub(super) struct SMBConnection {
 }
 
 impl SMBConnection {
-    pub(super) fn connect(_url: String) -> Result<Box<dyn SMB>> {
+    pub(super) fn connect(_url: String) -> Result<Box<dyn VFS>> {
         let mut mocks = Mocks{dirs: BTreeSet::new(), files: BTreeMap::new()};
         let _ = mocks.dirs.insert("/first/".into());
         let _ = mocks.dirs.insert("/quatre/".into());
@@ -44,7 +44,7 @@ impl SMBConnection {
     }
 }
 
-impl SMB for SMBConnection {
+impl VFS for SMBConnection {
     /*fn access(&self, path: &str, mode: u32) -> Result<()> {
         let p = Path::new(path);
         if let Some(name) = p.file_name() {
@@ -55,7 +55,7 @@ impl SMB for SMBConnection {
         Err(Error::new(std::io::ErrorKind::PermissionDenied, "permission denied"))
     }*/
 
-    fn stat64(&self, path: &str) -> Result<SMBStat64> {
+    fn stat(&self, path: &str) -> Result<VFSStat> {
         let mocks = using_rwlock_read!(&self.mocks);
         let size = if let Some(c) = mocks.files.get(&path.to_string()) {
             Some(c.len() as u64)
@@ -68,7 +68,7 @@ impl SMB for SMBConnection {
             if path == "/quatre" || path == "/quatre/" { 0o555 } else { 0o775 }
         };*/
 
-        Ok(SMBStat64{
+        Ok(VFSStat{
             ino: Default::default(),
             nlink: Default::default(),
             size: size.unwrap_or_default(),
@@ -85,7 +85,7 @@ impl SMB for SMBConnection {
     //    Ok(())
     //}
 
-    fn opendir(&mut self, path: &str) -> Result<Box<dyn SMBDirectory>> {
+    fn opendir(&mut self, path: &str) -> Result<Box<dyn VFSDirectory>> {
         let mocks = using_rwlock_read!(&self.mocks);
         if path != "/" && mocks.dirs.get(&path.to_string()).is_none() {
             return Err(Error::new(std::io::ErrorKind::Other, "not found or not a directory"));
@@ -99,7 +99,7 @@ impl SMB for SMBConnection {
         Ok(())
     }
 
-    fn create(&mut self, path: &str, _flags: u32, _mode: u32) -> Result<Box<dyn SMBFile>> {
+    fn create(&mut self, path: &str, _flags: u32, _mode: u32) -> Result<Box<dyn VFSFile>> {
         let mocks = &mut using_rwlock!(self.mocks);
         let _ = mocks.files.insert(path.to_string(), Vec::new());
         Ok(Box::new(SMBFile2{smb: self.clone(), path: path.to_string()}))
@@ -118,7 +118,7 @@ impl SMB for SMBConnection {
         Ok(())
     }
 
-    fn open(&mut self, path: &str, _flags: u32) -> Result<Box<dyn SMBFile>> {
+    fn open(&mut self, path: &str, _flags: u32) -> Result<Box<dyn VFSFile>> {
         let mocks = &mut using_rwlock!(self.mocks);
         if mocks.dirs.get(&path.to_string()).is_some() {
             return Err(Error::new(std::io::ErrorKind::Other, "is a directory"));
@@ -136,7 +136,7 @@ impl SMB for SMBConnection {
         Ok(())
       }
       
-    fn watch(&self, _path: &str, _mode: super::SMBWatchMode, _listen_events: super::SMBFileNotificationOperationFlags) -> Result<SMBFileNotificationBoxed> {
+    fn watch(&self, _path: &str, _mode: super::VFSWatchMode, _listen_events: super::VFSFileNotificationOperationFlags) -> Result<VFSFileNotificationBoxed> {
         todo!("watch unimplemented for mock")
     }
 }
@@ -145,15 +145,15 @@ impl SMB for SMBConnection {
 pub struct SMBSDirectory2 {
     smb: SMBConnection,
     path: String,
-    entries: Option<Vec<SMBDirEntry>>,
+    entries: Option<Vec<VFSDirEntry>>,
     index: usize,
 }
 
-impl SMBDirectory for SMBSDirectory2 {
+impl VFSDirectory for SMBSDirectory2 {
 }
 
 impl Iterator for SMBSDirectory2 {
-    type Item = Result<SMBDirEntry>;
+    type Item = Result<VFSDirEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.entries.is_none() {
@@ -164,10 +164,10 @@ impl Iterator for SMBSDirectory2 {
                 let (parent_path, name) = get_parent_path_and_name(&mock_file);
                 if parent_path == self.path {
                         //let mode = if mock_file == "/3" { 0o444 } else { 0o664 };
-                        entries.push(SMBDirEntry{
+                        entries.push(VFSDirEntry{
                         path: name,
                         inode: Default::default(),
-                        d_type: SMBEntryType::File,
+                        d_type: VFSEntryType::File,
                         size: content.len() as u64,
                         atime: Time{seconds: 1658159058, nseconds: 0},
                         mtime: Time{seconds: 1658159058, nseconds: 0},
@@ -183,10 +183,10 @@ impl Iterator for SMBSDirectory2 {
                 let (parent_path, name) = get_parent_path_and_name(&mock_dir.trim_end_matches('/').into());
                 if parent_path == self.path {
                     //let mode = if mock_dir == "/quatre/" { 0o555 } else { 0o775 };
-                    entries.push(SMBDirEntry{
+                    entries.push(VFSDirEntry{
                         path: name,
                         inode: Default::default(),
-                        d_type: SMBEntryType::Directory,
+                        d_type: VFSEntryType::Directory,
                         size: Default::default(),
                         atime: Time{seconds: 1658159058, nseconds: 0},
                         mtime: Time{seconds: 1658159058, nseconds: 0},
@@ -222,15 +222,15 @@ pub struct SMBFile2 {
     path: String,
 }
 
-impl SMBFile for SMBFile2 {
-    fn fstat64(&self) -> Result<SMBStat64> {
+impl VFSFile for SMBFile2 {
+    fn fstat(&self) -> Result<VFSStat> {
         let mocks = using_rwlock_read!(self.smb.mocks);
         let size = if let Some(c) = mocks.files.get(&self.path) {
             c.len() as u64
         } else {
             0
         };
-        Ok(SMBStat64{
+        Ok(VFSStat{
             ino: Default::default(),
             nlink: Default::default(),
             size,
@@ -290,16 +290,16 @@ mod tests {
                     Ok(dir) => {
                         let mut entries = Vec::new();
                         for entry in dir {
-                            let res: Result<SMBDirEntry> = entry;
+                            let res: Result<VFSDirEntry> = entry;
                             if let Some(e) = res.ok() {
                                 entries.push((e.path, e.d_type));
                             }
                         }
                         let expected_entries = vec![
-                            ("3".to_string(), SMBEntryType::File),
-                            ("annar".to_string(), SMBEntryType::File),
-                            ("quatre".to_string(), SMBEntryType::Directory),
-                            ("first".to_string(), SMBEntryType::Directory),
+                            ("3".to_string(), VFSEntryType::File),
+                            ("annar".to_string(), VFSEntryType::File),
+                            ("quatre".to_string(), VFSEntryType::Directory),
+                            ("first".to_string(), VFSEntryType::Directory),
                         ];
                         assert_eq!(entries, expected_entries);        
                     },
@@ -311,13 +311,13 @@ mod tests {
                     Ok(subdir) => {
                         let mut subentries = Vec::new();
                         for subentry in subdir {
-                            let res: Result<SMBDirEntry> = subentry;
+                            let res: Result<VFSDirEntry> = subentry;
                             if let Some(e) = res.ok() {
                                 subentries.push((e.path, e.d_type));
                             }
                         }
                         let expected_subentries = vec![
-                            ("comment".to_string(), SMBEntryType::File),
+                            ("comment".to_string(), VFSEntryType::File),
                         ];
                         assert_eq!(subentries, expected_subentries);        
         

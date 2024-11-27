@@ -8,7 +8,7 @@ use send_wrapper::SendWrapper;
 use std::{path::Path, sync::{Arc, RwLock, RwLockWriteGuard}, thread};
 
 mod smb;
-use smb::{SMBEntryType, SMBFileNotificationInformation, SMBFileNotification, SMBFileNotificationOperation, SMBWatchMode, SMB};
+use smb::{VFSEntryType, VFSFileNotificationInformation, VFSFileNotification, VFSFileNotificationOperation, VFSWatchMode, VFS};
 
 /*
 
@@ -320,7 +320,7 @@ impl Default for JsSmbCreateWritableOptions {
 #[derive(Clone)]
 #[napi]
 pub struct JsSmbHandle {
-  smb: Option<Arc<RwLock<Box<dyn SMB>>>>,
+  smb: Option<Arc<RwLock<Box<dyn VFS>>>>,
   path: String,
   #[napi(readonly, ts_type="'directory' | 'file'")]
   pub kind: String,
@@ -462,7 +462,7 @@ impl JsSmbDirectoryHandle {
     self.smb_entries_guarded(&mut my_smb)
   }
 
-  fn smb_entries_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn SMB>>) -> Result<Vec<JsSmbHandle>> {
+  fn smb_entries_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn VFS>>) -> Result<Vec<JsSmbHandle>> {
     let mut entries = Vec::new();
     let path = self.handle.path.as_str();
     let dir = my_smb.opendir(path)?;
@@ -470,7 +470,7 @@ impl JsSmbDirectoryHandle {
       if let Some(e) = entry.ok() {
         let name = e.path;
         let (kind, path) = match e.d_type {
-          SMBEntryType::Directory => (KIND_DIRECTORY.into(), format_dir_path(&self.handle.path, &name)),
+          VFSEntryType::Directory => (KIND_DIRECTORY.into(), format_dir_path(&self.handle.path, &name)),
           _ => (KIND_FILE.into(), format_file_path(&self.handle.path, &name))
         };
         if kind != KIND_DIRECTORY || (name != DIR_CURRENT && name != DIR_PARENT) {
@@ -542,7 +542,7 @@ impl JsSmbDirectoryHandle {
     self.smb_remove_guarded(&mut my_smb, entry, recursive)
   }
 
-  fn smb_remove_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn SMB>>, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
+  fn smb_remove_guarded(&self, my_smb: &mut RwLockWriteGuard<Box<dyn VFS>>, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
     if entry.kind == KIND_DIRECTORY {
       let subentries = JsSmbDirectoryHandle::from(entry.to_owned()).smb_entries_guarded(my_smb)?;
       if !recursive && subentries.len() > 0 {
@@ -615,8 +615,8 @@ impl JsSmbDirectoryHandle {
           let smb = &handle.smb;
           let path = &handle.path;
           let my_smb = using_rwlock!(smb);
-          let watch_mode = SMBWatchMode::Recursive;
-          let listen_flags = SMBFileNotificationOperation::all();
+          let watch_mode = VFSWatchMode::Recursive;
+          let listen_flags = VFSFileNotificationOperation::all();
           
           let res = my_smb.watch(path, watch_mode, listen_flags)?;  
           Ok(res.into())
@@ -712,7 +712,7 @@ impl JsSmbFileHandle {
     let type_ = mime_guess::from_path(path).first_raw().unwrap_or(MIME_TYPE_UNKNOWN).into();
     let smb = &self.handle.smb;
     let my_smb = using_rwlock!(smb);
-    let smb_stat = my_smb.stat64(self.handle.path.as_str())?;
+    let smb_stat = my_smb.stat(self.handle.path.as_str())?;
     Ok(JsSmbFile{handle: self.handle.clone(), size: smb_stat.size as i64, type_, last_modified: (smb_stat.mtime * 1000) as i64, name: self.name.clone()})
   }
 
@@ -723,8 +723,8 @@ impl JsSmbFileHandle {
   }
 }
 
-impl From<Box<dyn SMBFileNotification>> for Vec<JsSmbNotifyChange> {
-    fn from(value: Box<dyn SMBFileNotification>) -> Self {
+impl From<Box<dyn VFSFileNotification>> for Vec<JsSmbNotifyChange> {
+    fn from(value: Box<dyn VFSFileNotification>) -> Self {
       let ret: Vec<JsSmbNotifyChange> = value.into_iter().filter_map(|res| 
         match res {
             Ok(res) => Some(res.into()),
@@ -736,8 +736,8 @@ impl From<Box<dyn SMBFileNotification>> for Vec<JsSmbNotifyChange> {
     }
 }
 
-impl From<SMBFileNotificationInformation> for JsSmbNotifyChange {
-    fn from(value: SMBFileNotificationInformation) -> Self {
+impl From<VFSFileNotificationInformation> for JsSmbNotifyChange {
+    fn from(value: VFSFileNotificationInformation) -> Self {
         let ret = JsSmbNotifyChange{
           path: value.path,
           action: value.operation.into(),
@@ -746,8 +746,8 @@ impl From<SMBFileNotificationInformation> for JsSmbNotifyChange {
     }
 }
 
-impl From<SMBFileNotificationOperation> for std::string::String {
-    fn from(value: SMBFileNotificationOperation) -> Self {
+impl From<VFSFileNotificationOperation> for std::string::String {
+    fn from(value: VFSFileNotificationOperation) -> Self {
         let s = format!("{}", value);
         return s;
     }
@@ -829,7 +829,7 @@ impl JsSmbFile {
     let smb = &self.handle.smb;
     let mut my_smb = using_rwlock!(smb);
     let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
-    let smb_stat = smb_file.fstat64()?;
+    let smb_stat = smb_file.fstat()?;
     let buffer = &mut vec![0u8; smb_stat.size as usize];
     let _ = smb_file.pread_into(smb_stat.size as u32, 0, buffer)?;
     Ok(buffer.to_vec())
@@ -1064,7 +1064,7 @@ impl JsSmbWritableFileStream {
     flags.insert(nix::fcntl::OFlag::O_SYNC);
     let smb_file = my_smb.open(self.handle.path.as_str(), flags.bits() as u32)?;  
     let offset = match self.position {
-      None => smb_file.fstat64()?.size,
+      None => smb_file.fstat()?.size,
       Some(pos) => pos as u64
     };
     let _ = smb_file.pwrite(bytes, offset)?;
@@ -1106,7 +1106,7 @@ impl JsSmbWritableFileStream {
   fn smb_truncate(&mut self, size: i64) -> Result<Undefined> {
     let smb = &self.handle.smb;
     let my_smb = using_rwlock!(smb);
-    let smb_stat = my_smb.stat64(self.handle.path.as_str())?;
+    let smb_stat = my_smb.stat(self.handle.path.as_str())?;
     my_smb.truncate(self.handle.path.as_str(), size as u64)?;
     let size_before = smb_stat.size as i64;
     if let Some(position) = self.position {

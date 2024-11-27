@@ -6,7 +6,7 @@ use nix::fcntl::OFlag;
 use libsmb2_rs::{Smb, SmbChangeNotifyAction, SmbChangeNotifyFileFilter, SmbChangeNotifyFlags, SmbNotifyChangeInformation};
 use url::Url;
 
-use super::{Result, SMBDirEntry, SMBDirectory, SMBFile, SMBFileNotificationInformation, SMBFileNotification, SMBFileNotificationBoxed, SMBFileNotificationOperation, SMBFileNotificationOperationFlags, SMBStat64, SMBWatchMode, Time, SMB};
+use super::{Result, VFSDirEntry, VFSDirectory, VFSFile, VFSFileNotificationInformation, VFSFileNotification, VFSFileNotificationBoxed, VFSFileNotificationOperation, VFSFileNotificationOperationFlags, VFSStat, VFSWatchMode, Time, VFS};
 
 macro_rules! using_rwlock {
     ( $rwlock:expr ) => {
@@ -19,7 +19,7 @@ pub(super) struct SMBConnection {
 }
 
 impl SMBConnection {
-    pub(super) fn connect(url: String) -> Result<Box<dyn SMB>> {
+    pub(super) fn connect(url: String) -> Result<Box<dyn VFS>> {
         let mut real_url = url;
         let mut smb = Smb::new()?;
         let mut passwd: Option<String> = None;
@@ -57,16 +57,16 @@ impl Debug for SMBConnection {
     }
 }
 
-impl SMB for SMBConnection {
+impl VFS for SMBConnection {
     /*fn access(&self, path: &str, mode: u32) -> Result<()> {
         let my_smb = using_rwlock!(self.smb);
         my_smb.access(Path::new(path), mode as i32).map(|_| ())
     }*/
 
-    fn stat64(&self, path: &str) -> Result<SMBStat64> {
+    fn stat(&self, path: &str) -> Result<VFSStat> {
         let smb_path = normalize_smb_path(path);
         let my_smb = using_rwlock!(self.smb);
-        my_smb.stat64(Path::new(smb_path)).map(|res| SMBStat64{
+        my_smb.stat64(Path::new(smb_path)).map(|res| VFSStat{
             ino: res.smb2_ino,
             nlink: res.smb2_nlink.into(),
             size: res.smb2_size,
@@ -79,7 +79,7 @@ impl SMB for SMBConnection {
         })
     }
 
-    fn opendir(&mut self, path: &str) -> Result<Box<dyn SMBDirectory>> {
+    fn opendir(&mut self, path: &str) -> Result<Box<dyn VFSDirectory>> {
         let smb_path = normalize_smb_path(path);
         let mut my_smb = using_rwlock!(self.smb);
         let dir = my_smb.opendir(Path::new(smb_path))?;
@@ -92,7 +92,7 @@ impl SMB for SMBConnection {
         my_smb.mkdir(Path::new(smb_path))
     }
 
-    fn create(&mut self, path: &str, flags: u32, mode: u32) -> Result<Box<dyn SMBFile>> {
+    fn create(&mut self, path: &str, flags: u32, mode: u32) -> Result<Box<dyn VFSFile>> {
         let smb_path = normalize_smb_path(path);
         let mut my_smb = using_rwlock!(self.smb);
         let file = my_smb.create(Path::new(smb_path), OFlag::from_bits_truncate(flags as i32), Mode::from_bits_truncate((mode as u16).into()))?;
@@ -111,7 +111,7 @@ impl SMB for SMBConnection {
         my_smb.unlink(Path::new(smb_path))
     }
 
-    fn open(&mut self, path: &str, flags: u32) -> Result<Box<dyn SMBFile>> {
+    fn open(&mut self, path: &str, flags: u32) -> Result<Box<dyn VFSFile>> {
         let smb_path = normalize_smb_path(path);
         let mut my_smb = using_rwlock!(self.smb);
         let file = my_smb.open(Path::new(smb_path), OFlag::from_bits_truncate(flags as i32))?;
@@ -124,13 +124,13 @@ impl SMB for SMBConnection {
         my_smb.truncate(Path::new(smb_path), len)
     }
     
-    fn watch(&self, path: &str, mode: super::SMBWatchMode, listen_events: super::SMBFileNotificationOperationFlags) -> Result<SMBFileNotificationBoxed> {
+    fn watch(&self, path: &str, mode: super::VFSWatchMode, listen_events: super::VFSFileNotificationOperationFlags) -> Result<VFSFileNotificationBoxed> {
         let smb_path = normalize_smb_path(path);
         let my_smb = using_rwlock!(self.smb);
         let notify_flags = SmbChangeNotifyFlags::my_from(mode);
         let notify_filter = SmbChangeNotifyFileFilter::my_from(listen_events);
         let notify_change = my_smb.notify_change(Path::new(smb_path), notify_flags, notify_filter)?;
-        let ret = SMBFileNotificationBoxed::my_from(notify_change);
+        let ret = VFSFileNotificationBoxed::my_from(notify_change);
         return Ok(ret);
     }
 }
@@ -139,41 +139,41 @@ pub trait MyFrom<T> {
     fn my_from(value: T) -> Self;
 }
 
-impl MyFrom<SMBWatchMode> for SmbChangeNotifyFlags {
-    fn my_from(value: SMBWatchMode) -> Self {
+impl MyFrom<VFSWatchMode> for SmbChangeNotifyFlags {
+    fn my_from(value: VFSWatchMode) -> Self {
         match value {
-            SMBWatchMode::Default => {
+            VFSWatchMode::Default => {
                 SmbChangeNotifyFlags::DEFAULT
             },
-            SMBWatchMode::Recursive => {
+            VFSWatchMode::Recursive => {
                 SmbChangeNotifyFlags::WATCH_TREE
             },
         }
     }
 }
 
-impl MyFrom<SMBFileNotificationOperationFlags> for SmbChangeNotifyFileFilter {
-    fn my_from(value: SMBFileNotificationOperationFlags) -> Self {
+impl MyFrom<VFSFileNotificationOperationFlags> for SmbChangeNotifyFileFilter {
+    fn my_from(value: VFSFileNotificationOperationFlags) -> Self {
         let mut ret = SmbChangeNotifyFileFilter::empty();
-        if value.contains(SMBFileNotificationOperation::Create) {
+        if value.contains(VFSFileNotificationOperation::Create) {
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_CREATION;
         }
-        if value.contains(SMBFileNotificationOperation::Write) {
+        if value.contains(VFSFileNotificationOperation::Write) {
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_LAST_WRITE;
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_STREAM_SIZE;
         }
-        if value.contains(SMBFileNotificationOperation::Remove) {
+        if value.contains(VFSFileNotificationOperation::Remove) {
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_LAST_ACCESS;
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_LAST_ACCESS;
 
         }
-        if value.contains(SMBFileNotificationOperation::ChAttr) {
+        if value.contains(VFSFileNotificationOperation::ChAttr) {
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_ATTRIBUTES;
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_LAST_ACCESS;
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_CREATION;
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_EA;
         }
-        if value.contains(SMBFileNotificationOperation::Rename) {
+        if value.contains(VFSFileNotificationOperation::Rename) {
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_FILE_NAME;
             ret = ret | SmbChangeNotifyFileFilter::CHANGE_DIR_NAME;
         }
@@ -182,38 +182,38 @@ impl MyFrom<SMBFileNotificationOperationFlags> for SmbChangeNotifyFileFilter {
     }
 }
 
-impl MyFrom<SmbChangeNotifyAction> for SMBFileNotificationOperation {
+impl MyFrom<SmbChangeNotifyAction> for VFSFileNotificationOperation {
     fn my_from(value: SmbChangeNotifyAction) -> Self {
         match value {
             SmbChangeNotifyAction::Added => {
-                return SMBFileNotificationOperation::Create;
+                return VFSFileNotificationOperation::Create;
             },
             SmbChangeNotifyAction::Removed => {
-                return SMBFileNotificationOperation::Remove;
+                return VFSFileNotificationOperation::Remove;
             },
             SmbChangeNotifyAction::Modified => {
-                return SMBFileNotificationOperation::Write;
+                return VFSFileNotificationOperation::Write;
             },
             SmbChangeNotifyAction::RenamedOldName => {
-                return SMBFileNotificationOperation::Rename;
+                return VFSFileNotificationOperation::Rename;
             },
             SmbChangeNotifyAction::RenamedNewName => {
-                return SMBFileNotificationOperation::Rename;
+                return VFSFileNotificationOperation::Rename;
             },
             SmbChangeNotifyAction::AddedStream => {
-                return SMBFileNotificationOperation::Write;
+                return VFSFileNotificationOperation::Write;
             },
             SmbChangeNotifyAction::RemovedStream => {
-                return SMBFileNotificationOperation::Write;
+                return VFSFileNotificationOperation::Write;
             },
             SmbChangeNotifyAction::ModifiedStream => {
-                return SMBFileNotificationOperation::Write;
+                return VFSFileNotificationOperation::Write;
             },
         }
     }
 }
 
-impl MyFrom<SmbNotifyChangeInformation> for SMBFileNotificationBoxed {
+impl MyFrom<SmbNotifyChangeInformation> for VFSFileNotificationBoxed {
     fn my_from(value: SmbNotifyChangeInformation) -> Self {
         let not = SMBFileNotification2{notification: value };
         return Box::new(not);
@@ -236,7 +236,7 @@ pub struct SMBDirectory2 {
     dir: libsmb2_rs::SmbDirectory,
 }
 
-impl SMBDirectory for SMBDirectory2 {
+impl VFSDirectory for SMBDirectory2 {
 }
 
 impl Debug for SMBDirectory2 {
@@ -246,10 +246,10 @@ impl Debug for SMBDirectory2 {
 }
 
 impl Iterator for SMBDirectory2 {
-    type Item = Result<SMBDirEntry>;
+    type Item = Result<VFSDirEntry>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.dir.next().map(|res| res.map(|entry| SMBDirEntry{
+        self.dir.next().map(|res| res.map(|entry| VFSDirEntry{
             path: entry.path.display().to_string(),
             inode: entry.inode,
             d_type: (entry.d_type as u32).into(),
@@ -275,9 +275,9 @@ impl Debug for SMBFile2 {
     }
 }
 
-impl SMBFile for SMBFile2 {
-    fn fstat64(&self) -> Result<SMBStat64> {
-        self.file.fstat64().map(|res| SMBStat64{
+impl VFSFile for SMBFile2 {
+    fn fstat(&self) -> Result<VFSStat> {
+        self.file.fstat64().map(|res| VFSStat{
             ino: res.smb2_ino,
             nlink: res.smb2_nlink.into(),
             size: res.smb2_size,
@@ -304,7 +304,7 @@ pub struct SMBFileNotification2 {
     notification: libsmb2_rs::SmbNotifyChangeInformation,
 }
 
-impl SMBFileNotification for SMBFileNotification2 {
+impl VFSFileNotification for SMBFileNotification2 {
 }
 
 impl Debug for SMBFileNotification2 {
@@ -314,12 +314,12 @@ impl Debug for SMBFileNotification2 {
 }
 
 impl Iterator for SMBFileNotification2 {
-    type Item = Result<SMBFileNotificationInformation>;
+    type Item = Result<VFSFileNotificationInformation>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.notification.next().map(|res| res.map(|entry| SMBFileNotificationInformation{
+        self.notification.next().map(|res| res.map(|entry| VFSFileNotificationInformation{
             path: entry.path,
-            operation: SMBFileNotificationOperation::my_from(entry.action),
+            operation: VFSFileNotificationOperation::my_from(entry.action),
         }))
     }
 
