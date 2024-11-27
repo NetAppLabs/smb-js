@@ -48,6 +48,7 @@ comment = smbtest
 path = ${SHARE_DIR}
 read only = no
 browsable = yes
+directory mask = 0777
 create mask = 0666
 guest ok = yes
 EOF
