@@ -17,20 +17,7 @@ macro_rules! using_rwlock_read {
     ( $rwlock:expr ) => {
       $rwlock.read().unwrap()
     };
-}
-
-macro_rules! unsafe_using_rwlock {
-    ( $rwlock:expr ) => {
-      unsafe {$rwlock.write().unwrap() }
-    };
-}
-
-macro_rules! unsafe_using_rwlock_read {
-    ( $rwlock:expr ) => {
-      unsafe {$rwlock.read().unwrap() }
-    };
-}
-  
+}  
   
 
 #[derive(Debug)]
@@ -39,7 +26,7 @@ struct Mocks {
     files: BTreeMap<String, Vec<u8>>
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(super) struct SMBConnection {
     mocks: Arc<RwLock<Mocks>>,
 }
@@ -103,7 +90,7 @@ impl SMB for SMBConnection {
         if path != "/" && mocks.dirs.get(&path.to_string()).is_none() {
             return Err(Error::new(std::io::ErrorKind::Other, "not found or not a directory"));
         }
-        Ok(Box::new(SMBSDirectory2{smb: &*self, path: path.to_string(), entries: None, index: 0}))
+        Ok(Box::new(SMBSDirectory2{smb: self.clone(), path: path.to_string(), entries: None, index: 0}))
     }
 
     fn mkdir(&self, path: &str, _mode: u32) -> Result<()> {
@@ -115,7 +102,7 @@ impl SMB for SMBConnection {
     fn create(&mut self, path: &str, _flags: u32, _mode: u32) -> Result<Box<dyn SMBFile>> {
         let mocks = &mut using_rwlock!(self.mocks);
         let _ = mocks.files.insert(path.to_string(), Vec::new());
-        Ok(Box::new(SMBFile2{smb: &*self, path: path.to_string()}))
+        Ok(Box::new(SMBFile2{smb: self.clone(), path: path.to_string()}))
     }
 
     fn rmdir(&self, path: &str) -> Result<()> {
@@ -139,7 +126,7 @@ impl SMB for SMBConnection {
         if mocks.files.get(&path.to_string()).is_none() {
             mocks.files.insert(path.to_string(), Vec::new());
         }
-        Ok(Box::new(SMBFile2{smb: &*self, path: path.to_string()}))
+        Ok(Box::new(SMBFile2{smb: self.clone(), path: path.to_string()}))
     }
 
     fn truncate(&self, path: &str, len: u64) -> Result<()> {
@@ -156,7 +143,7 @@ impl SMB for SMBConnection {
 
 #[derive(Debug)]
 pub struct SMBSDirectory2 {
-    smb: *const SMBConnection,
+    smb: SMBConnection,
     path: String,
     entries: Option<Vec<SMBDirEntry>>,
     index: usize,
@@ -171,7 +158,7 @@ impl Iterator for SMBSDirectory2 {
     fn next(&mut self) -> Option<Self::Item> {
         if self.entries.is_none() {
             let mut entries = Vec::new();
-            let mocks = unsafe_using_rwlock_read!(&(*self.smb).mocks);
+            let mocks = using_rwlock_read!(self.smb.mocks);
             // XXX: technically should add '.' and '..' to entries but don't bother since they will be ignored anyway
             for (mock_file, content) in &mocks.files {
                 let (parent_path, name) = get_parent_path_and_name(&mock_file);
@@ -231,13 +218,13 @@ impl Iterator for SMBSDirectory2 {
 
 #[derive(Debug)]
 pub struct SMBFile2 {
-    smb: *const SMBConnection,
+    smb: SMBConnection,
     path: String,
 }
 
 impl SMBFile for SMBFile2 {
     fn fstat64(&self) -> Result<SMBStat64> {
-        let mocks = unsafe_using_rwlock_read!(&(*self.smb).mocks);
+        let mocks = using_rwlock_read!(self.smb.mocks);
         let size = if let Some(c) = mocks.files.get(&self.path) {
             c.len() as u64
         } else {
@@ -257,7 +244,7 @@ impl SMBFile for SMBFile2 {
     }
 
     fn pread_into(&self, count: u32, offset: u64, buffer: &mut [u8]) -> Result<u32> {
-        let mocks = unsafe_using_rwlock_read!(&(*self.smb).mocks);
+        let mocks = using_rwlock_read!(self.smb.mocks);
         let readlen = if let Some(content) = mocks.files.get(&self.path) {
             let (offset, count, len) = (offset as usize, count as usize, content.len());
             let start = if offset <= len { offset } else { len };
@@ -272,7 +259,7 @@ impl SMBFile for SMBFile2 {
     }
 
     fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<u32> {
-        let mut mocks = unsafe_using_rwlock!(&(*self.smb).mocks);
+        let mut mocks = using_rwlock!(self.smb.mocks);
         let contents = mocks.files.entry(self.path.clone()).or_default();
         let offset = offset as usize;
         let writelen = if contents.len() >= offset + buffer.len() {
