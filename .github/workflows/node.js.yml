@@ -53,7 +53,7 @@ jobs:
     - name: Upload node module
       uses: actions/upload-artifact@v4
       with:
-        name: smb-js.node
+        name: smb-js-node-${{ matrix.settings.host }}
         path: smb-js.*.node
   publish:
     runs-on: ubuntu-latest
@@ -64,10 +64,10 @@ jobs:
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          path: smb-js.node
-          pattern: smb-js.*.node
+          path: .
+          pattern: smb-js-node-*
           merge-multiple: true  
-      - name: Publis Artifacts
+      - name: Publish Artifacts
         run: ./publish.sh
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
