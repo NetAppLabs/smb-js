@@ -5,9 +5,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "npm" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main" , "npm" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -41,11 +41,13 @@ jobs:
     - uses: actions-rust-lang/setup-rust-toolchain@v1
     - name: Install non-rust non-node dependencies
       run: ./deps.sh
-    - name: Use Node.js 20.x
+    - name: Use Node.js
       uses: actions/setup-node@v4
       with:
         node-version: 20.x
         cache: 'yarn'
+        registry-url: 'https://npm.pkg.github.com'
+        scope: '@netapplabs'
     - name: Prepare yarn
       run: yarn install --immutable
     - name: Build
@@ -55,16 +57,21 @@ jobs:
     - name: Upload node module
       uses: actions/upload-artifact@v4
       with:
-        name: smb-js.${{ matrix.settings.target }}.node
+        name: smb-js.node
         path: smb-js.*.node
-  # publish:
-  #   runs-on: ubuntu-latest
-  #   needs: build
-  #   steps:
-  #     - name: Download Artifact
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: smb-js.${{ matrix.settings.target }}.node
-  #         path: .
-  #     - name: Publis Artifacts
-  #       run: ./publish.sh
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    needs: build
+    steps:
+      - name: Download Artifact
+        uses: actions/download-artifact@v4
+        with:
+          path: smb-js.node
+          pattern: smb-js.*.node
+          merge-multiple: true  
+      - name: Publis Artifacts
+        run: ./publish.sh
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
