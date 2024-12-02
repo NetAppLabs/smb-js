@@ -68,6 +68,6 @@ jobs:
           pattern: smb-js-node-*
           merge-multiple: true  
       - name: Publish Artifacts
-        run: ./publish.sh
+        run: npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
