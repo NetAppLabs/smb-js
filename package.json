@@ -104,8 +104,5 @@
     "singleQuote": true,
     "arrowParens": "always"
   },
-  "packageManager": "yarn@3.2.1",
-  "optionalDependencies": {
-    "@netapplabs/smb-js-darwin-arm64": "1.0.0"
-  }
+  "packageManager": "yarn@3.2.1"
 }
