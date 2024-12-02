@@ -1,5 +1,5 @@
 {
-  "name": "@wasmin/smb-js",
+  "name": "@netapplabs/smb-js",
   "version": "1.0.0",
   "description": "smb js",
   "main": "indax.js",
@@ -16,23 +16,15 @@
   "files": [
     "indax.ts",
     "index.d.ts",
-    "index.js"
+    "index.js",
+    "*.node"
   ],
   "napi": {
     "name": "smb-js",
     "triples": {
-      "defaults": true,
+      "defaults": false,
       "additional": [
-        "x86_64-unknown-linux-musl",
-        "aarch64-unknown-linux-gnu",
-        "i686-pc-windows-msvc",
-        "armv7-unknown-linux-gnueabihf",
-        "aarch64-apple-darwin",
-        "aarch64-linux-android",
-        "x86_64-unknown-freebsd",
-        "aarch64-unknown-linux-musl",
-        "aarch64-pc-windows-msvc",
-        "armv7-linux-androideabi"
+        "aarch64-apple-darwin"
       ]
     }
   },
@@ -40,8 +32,8 @@
     "node": ">= 10"
   },
   "publishConfig": {
-    "registry": "https://registry.npmjs.org/",
-    "access": "public"
+    "registry": "https://npm.pkg.github.com",
+    "access": "restricted"
   },
   "scripts": {
     "artifacts": "napi artifacts",
@@ -112,5 +104,8 @@
     "singleQuote": true,
     "arrowParens": "always"
   },
-  "packageManager": "yarn@3.2.1"
+  "packageManager": "yarn@3.2.1",
+  "optionalDependencies": {
+    "@netapplabs/smb-js-darwin-arm64": "1.0.0"
+  }
 }

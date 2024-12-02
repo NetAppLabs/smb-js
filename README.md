@@ -1,4 +1,4 @@
-# `@wasmin/smb-js`
+# `@netapplabs/smb-js`
 
 ![https://github.com/NetAppLabs/smb-js/actions](https://github.com/NetAppLabs/smb-js/actions/workflows/node.js.yml/badge.svg)
 
@@ -7,7 +7,7 @@
 # Usage
 
 ```
-import { SmbDirectoryHandle, SmbFileHandle } from '@wasmin/smb-js'
+import { SmbDirectoryHandle, SmbFileHandle } from '@netapplabs/smb-js'
 
 let smbURL="smb://myuser:mypassword@127.0.0.1:445/share";
 rootDir = new SmbDirectoryHandle(smbURL);
@@ -22,7 +22,7 @@ console.log("textContents: ", textContents);
 ## Install this package
 
 ```
-yarn add @wasmin/smb-js
+yarn add @netapplabs/smb-js
 ```
 
 ## Support matrix
