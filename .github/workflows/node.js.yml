@@ -68,11 +68,7 @@ jobs:
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          pattern: |
-            smb-js.*.node
-            package.json
-            index.*
-            indax.*
+          pattern: smb-js-node-*
           merge-multiple: true  
       - name: Publish Artifacts
         run: npm publish
