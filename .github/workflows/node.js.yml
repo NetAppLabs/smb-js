@@ -68,9 +68,8 @@ jobs:
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
-          path: .
           pattern: |
-            smb-js-node-*
+            smb-js.*.node
             package.json
             index.*
             indax.*
