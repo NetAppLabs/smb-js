@@ -29,7 +29,9 @@ jobs:
       matrix:
         settings:
           - host: ubuntu-latest
-            target: x86_64-unknown-linux-gnu  
+            target: x86_64-unknown-linux-gnu
+          - host: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
           - host: macos-latest
             target: aarch64-apple-darwin
     steps:
@@ -78,7 +80,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           pattern: smb-js-node-*
-          merge-multiple: true  
+          merge-multiple: true
       - name: Publish Artifacts
         run: npm publish --ignore-scripts
         env:
