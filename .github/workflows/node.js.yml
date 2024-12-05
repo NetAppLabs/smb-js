@@ -14,7 +14,7 @@ env:
 
 jobs:
   adeps-linux:
-    runs-on: [ubuntu-latest]
+    runs-on: [ubuntu-24.04]
     steps:
     - name: Install samba
       run: sudo apt-get -y install samba libc6-dev-amd64-cross libc6-dev-arm64-cross
@@ -28,10 +28,10 @@ jobs:
     strategy:
       matrix:
         settings:
-          - host: ubuntu-latest
+          - host: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             runtests: true
-          - host: ubuntu-latest
+          - host: ubuntu-24.04
             target: aarch64-unknown-linux-gnu
             runtests: false
           - host: macos-latest
@@ -65,7 +65,7 @@ jobs:
         path: |
           smb-js.*.node
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
