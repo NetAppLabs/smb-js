@@ -38,8 +38,8 @@
   "scripts": {
     "artifacts": "napi artifacts",
     "bench": "node -r @swc-node/register benchmark/bench.ts",
-    "build": "npm run build-sh && npm run build-tsc",
-    "build-sh": "./build.sh",
+    "build-all": "npm run build-sh && npm run build-tsc",
+    "build": "./build.sh",
     "build-tsc": "npx tsc -p .",
     "build-napi": "napi build --platform --release --pipe \"prettier -w\"",
     "build:darwin:x64": "napi build --platform --release --target x86_64-apple-darwin --pipe \"prettier -w\"",

@@ -1,6 +1,8 @@
 #!/bin/bash
 
 set -e
+TARGET_TRIPLE=$1
+TARGET_TRIPLE_FOR_CC=$2
 
 if ! command -v git 2>&1 >/dev/null ; then
     if command -v brew 2>&1 >/dev/null ; then
@@ -79,15 +81,28 @@ elif [ "${OS}" == "Linux" ]; then
 fi
 
 
-if [ ! -f libsmb2/local-install/lib/libsmb2.a ]; then
+
+if [ ! -f libsmb2/local-install/${TARGET_TRIPLE}/lib/libsmb2.a ]; then
      pushd libsmb2
      CURDIR="$(pwd)"
-     INSTALL_DIR="${CURDIR}/local-install"
+     INSTALL_DIR="${CURDIR}/local-install/${TARGET_TRIPLE}"
      mkdir -p "${INSTALL_DIR}"
      chmod 775 ./bootstrap
      ./bootstrap
-     ./configure --without-libkrb5 --prefix="${INSTALL_DIR}" --exec-prefix="${INSTALL_DIR}" CFLAGS='-fPIC -Wno-cast-align'
-     make
-     make install
+     ./configure \
+        --without-libkrb5 \
+        --host=${TARGET_TRIPLE} \
+        --prefix="${INSTALL_DIR}" \
+        --exec-prefix="${INSTALL_DIR}" \
+        CFLAGS='-fPIC -Wno-cast-align'
+     if [[ "${TARGET_TRIPLE_FOR_CC}" == *"darwin"* ]]; then
+        # for some reason -target does not work on macos/darwin
+        # todo look into that
+        make AR="zig ar" RANLIB="zig ranlib" CC='zig cc' clean all
+        make AR="zig ar" RANLIB="zig ranlib" CC='zig cc' install
+     else
+        make AR="zig ar" RANLIB="zig ranlib" CC='zig cc -target '${TARGET_TRIPLE_FOR_CC}'' clean all
+        make AR="zig ar" RANLIB="zig ranlib" CC='zig cc -target '${TARGET_TRIPLE_FOR_CC}'' install
+     fi
      popd
 fi
