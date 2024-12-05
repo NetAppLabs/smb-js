@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 TARGET_TRIPLE=$1
 TARGET_TRIPLE_FOR_CC=$2
 

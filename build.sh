@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 ARG1="$1"
 
