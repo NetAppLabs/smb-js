@@ -41,7 +41,7 @@ export LD_LIBRARY_PATH=${LIBSMB_LIB_PATH}:$LD_LIBRARY_PATH
 export RUST_BACKTRACE=1
 
 if [ "$ARG1" == "test" ]; then
-  cargo test
+  cargo test --release
 else
   yarn build-tsc
   yarn build-napi --target ${TARGET_TRIPLE}
