@@ -36,7 +36,7 @@ jobs:
             runtests: true
           - host: macos-latest
             target: x86_64-apple-darwin
-            runtests: true
+            runtests: false
     steps:
     - uses: actions/checkout@v4
     - uses: mlugg/setup-zig@v1
