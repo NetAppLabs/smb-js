@@ -80,9 +80,8 @@ elif [ "${OS}" == "Linux" ]; then
     fi
 fi
 
-
-
 if [ ! -f libsmb2/local-install/${TARGET_TRIPLE}/lib/libsmb2.a ]; then
+     LOCAL_TARGET="aarch64-unknown-linux-gnu"
      pushd libsmb2
      CURDIR="$(pwd)"
      INSTALL_DIR="${CURDIR}/local-install/${TARGET_TRIPLE}"
@@ -91,18 +90,11 @@ if [ ! -f libsmb2/local-install/${TARGET_TRIPLE}/lib/libsmb2.a ]; then
      ./bootstrap
      ./configure \
         --without-libkrb5 \
-        --host=${TARGET_TRIPLE} \
+        --host=${TARGET_TRIPLE_FOR_CC} \
         --prefix="${INSTALL_DIR}" \
         --exec-prefix="${INSTALL_DIR}" \
         CFLAGS='-fPIC -Wno-cast-align'
-     if [[ "${TARGET_TRIPLE_FOR_CC}" == *"darwin"* ]]; then
-        # for some reason -target does not work on macos/darwin
-        # todo look into that
-        make AR="zig ar" RANLIB="zig ranlib" CC='zig cc' clean all
-        make AR="zig ar" RANLIB="zig ranlib" CC='zig cc' install
-     else
-        make AR="zig ar" RANLIB="zig ranlib" CC='zig cc -target '${TARGET_TRIPLE_FOR_CC}'' clean all
-        make AR="zig ar" RANLIB="zig ranlib" CC='zig cc -target '${TARGET_TRIPLE_FOR_CC}'' install
-     fi
+     make clean all
+     make install
      popd
 fi
