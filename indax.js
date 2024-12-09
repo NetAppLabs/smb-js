@@ -2,7 +2,7 @@
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SmbWritableFileStream = exports.SmbFileHandle = exports.SmbDirectoryHandle = exports.SmbHandle = void 0;
-const index_1 = require("./index");
+const index_js_1 = require("./index.js");
 class SmbHandle {
     constructor(_jsh) {
         this._jsh = _jsh;
@@ -32,7 +32,7 @@ exports.SmbHandle = SmbHandle;
 class SmbDirectoryHandle extends SmbHandle {
     constructor(param) {
         const [url, toWrap] = typeof param === 'string' ? [param] : ['', param];
-        const _js = toWrap || new index_1.JsSmbDirectoryHandle(url);
+        const _js = toWrap || new index_js_1.JsSmbDirectoryHandle(url);
         super(_js.toHandle());
         this[_a] = this.entries;
         this[Symbol.asyncIterator] = this.entries;
@@ -46,7 +46,7 @@ class SmbDirectoryHandle extends SmbHandle {
     }
     async *entries() {
         for await (const [key, value] of this._js.entries()) {
-            yield [key, value instanceof index_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value)];
+            yield [key, value instanceof index_js_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value)];
         }
     }
     async *keys() {
@@ -56,7 +56,7 @@ class SmbDirectoryHandle extends SmbHandle {
     }
     async *values() {
         for await (const value of this._js.values()) {
-            yield value instanceof index_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value);
+            yield value instanceof index_js_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value);
         }
     }
     async getDirectoryHandle(name, options) {

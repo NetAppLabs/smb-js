@@ -24,7 +24,10 @@
     "triples": {
       "defaults": false,
       "additional": [
-        "aarch64-apple-darwin"
+        "x86_64-apple-darwin",
+        "aarch64-apple-darwin",
+        "x86_64-unknown-linux-gnu",
+        "aarch64-unknown-linux-gnu"
       ]
     }
   },
@@ -44,8 +47,8 @@
     "build-napi": "napi build --platform --release --pipe \"prettier -w\"",
     "build:darwin:x64": "napi build --platform --release --target x86_64-apple-darwin --pipe \"prettier -w\"",
     "build:darwin:arm64": "napi build --platform --release --target aarch64-apple-darwin --pipe \"prettier -w\"",
-    "build:linux:x64": "napi build --platform --release --target x86_64-unknown-linux-musl --pipe \"prettier -w\"",
-    "build:linux:arm64": "napi build --platform --release --target aarch64-unknown-linux-musl --pipe \"prettier -w\"",
+    "build:linux:x64": "napi build --platform --release --target x86_64-unknown-linux-gnu --pipe \"prettier -w\"",
+    "build:linux:arm64": "napi build --platform --release --target aarch64-unknown-linux-gnu --pipe \"prettier -w\"",
     "build:debug": "napi build --platform --pipe \"prettier -w\"",
     "format": "run-p format:prettier format:rs",
     "format:prettier": "prettier . -w",

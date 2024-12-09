@@ -8,7 +8,7 @@ import {
   JsSmbDirectoryHandle,
   JsSmbFileHandle,
   JsSmbWritableFileStream,
-} from './index';
+} from './index.js';
 
 type SmbHandlePermissionDescriptor = JsSmbHandlePermissionDescriptor;
 // @ts-ignore

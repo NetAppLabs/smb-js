@@ -53,7 +53,13 @@ create mask = 0666
 guest ok = yes
 EOF
 
-$SAMBA_SERVER --port=${SAMBA_PORT} -s ${SAMBA_CONFIG_DIR}/smbd.conf -F --debug-stdout -d 3 --no-process-group 2>&1 > ${SAMBA_CONFIG_DIR}/smb-stdout.log &
+$SAMBA_SERVER \
+    --port=${SAMBA_PORT} \
+    -s ${SAMBA_CONFIG_DIR}/smbd.conf \
+    -F \
+    --debug-stdout \
+    -d 3 \
+    --no-process-group 2>&1 > ${SAMBA_CONFIG_DIR}/smb-stdout.log &
 SAMBA_PID=$!
 
 sleep 1
