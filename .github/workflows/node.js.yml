@@ -17,7 +17,7 @@ jobs:
     runs-on: [ubuntu-24.04]
     steps:
     - name: Install deps
-      run: sudo apt-get -y install samba libc6-dev-amd64-cross libc6-dev-arm64-cross crossbuild-essential-arm64 crossbuild-essential-amd64 gcc-aarch64-linux-gnu
+      run: sudo apt-get -y install samba libc6-dev-amd64-cross libc6-dev-arm64-cross crossbuild-essential-arm64 crossbuild-essential-amd64 gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu
   adeps-macos:
     runs-on: [macos-latest]
     steps:
