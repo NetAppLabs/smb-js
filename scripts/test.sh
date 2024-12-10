@@ -62,19 +62,36 @@ $SAMBA_SERVER \
     --no-process-group 2>&1 > ${SAMBA_CONFIG_DIR}/smb-stdout.log &
 SAMBA_PID=$!
 
-sleep 1
-
 function kill_samba() {
     EXITCODE=$?
-        echo "Stopping samba EXITCODE=$EXITCODE"
-        kill -9 $SAMBA_PID || true
-        exit $EXITCODE
+    echo "Stopping samba EXITCODE=$EXITCODE"
+    kill -9 $SAMBA_PID || true
     if [ $EXITCODE -ne 0 ]; then
-        cat ${SAMBA_CONFIG_DIR}/smb.log
+        if [ -f ${SAMBA_CONFIG_DIR}/smb.log ]; then
+            cat ${SAMBA_CONFIG_DIR}/smb.log
+        elif [ -f ${SAMBA_CONFIG_DIR}/smb-stdout.log ]; then
+            cat ${SAMBA_CONFIG_DIR}/smb-stdout.log
+        fi
     fi
+    exit $EXITCODE
 }
 
 trap kill_samba EXIT
+
+function wait_samba() {
+    for ((i=1;i<=10;i++)); do
+        SAMBA_STATE=$(grep "waiting for connections" ${SAMBA_CONFIG_DIR}/smb-stdout.log || true)
+        if [ "$SAMBA_STATE" == "waiting for connections" ]; then
+            return
+        fi
+        if [ $i -lt 10 ]; then
+            echo "Waiting for samba to accept connections"
+            sleep 1
+        fi
+    done
+    echo "Gave up waiting for samba to accept connections"
+    exit 1
+}
 
 export RUST_BACKTRACE=1
 
@@ -84,5 +101,5 @@ echo "Test using mocks"
 TEST_USING_MOCKS=1 yarn test-ava
 
 echo "Test using SMB via URL ${SMB_URL} via libsmb2"
+wait_samba
 yarn test-ava
-
