@@ -4,7 +4,23 @@
 
 > SMB filesystem implementation for JavaScript/TypeScript.
 
+
+## Install this package
+
+Add an .npmrc file to your home directory or readable location
+
+```
+//npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
+@netapplabs:registry=https://npm.pkg.github.com/
+```
+
+```
+yarn add @netapplabs/smb-js
+```
+
 # Usage
+
+Example JavasScript usage:
 
 ```
 import { SmbDirectoryHandle, SmbFileHandle } from '@netapplabs/smb-js'
@@ -19,25 +35,17 @@ const textContents = await subFile.text();
 console.log("textContents: ", textContents);
 ```
 
-## Install this package
-
-```
-yarn add @netapplabs/smb-js
-```
 
 ## Support matrix
 
 ### Operating Systems
 
-|                  | node14 | node16 | node18 |
+|                  | node18 | node20 | node22 |
 | ---------------- | ------ | ------ | ------ |
 | macOS x64        | ✓      | ✓      | ✓      |
 | macOS arm64      | ✓      | ✓      | ✓      |
 | Linux x64 gnu    | ✓      | ✓      | ✓      |
-| Linux x64 musl   | ✓      | ✓      | ✓      |
-| Linux arm gnu    | ✓      | ✓      | ✓      |
 | Linux arm64 gnu  | ✓      | ✓      | ✓      |
-| Linux arm64 musl | ✓      | ✓      | ✓      |
 
 ## Ability
 
@@ -57,7 +65,8 @@ With GitHub actions, every commits and pull request will be built and tested aut
 
 - Install latest `Rust`
   - Install via e.g. `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- Install `Node.js@10+` which fully supported `Node-API`
+- Install `Node.js@20+` which fully supported `Node-API`
+- C compiler (gcc/clang)
 - Install `yarn@1.x`
 
 ## Test in local
@@ -71,11 +80,10 @@ And you will see:
 ```bash
 $ ava --verbose
 
-  ✔ sync function from native code
-  ✔ sleep function from native code (201ms)
+  ✔ test ...
   ─
 
-  2 tests passed
+  x tests passed
 ✨  Done in 1.12s.
 ```
 
