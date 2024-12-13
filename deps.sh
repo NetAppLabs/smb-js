@@ -80,7 +80,7 @@ elif [ "${OS}" == "Linux" ]; then
     fi
 fi
 
-
+PROCS=8
 YACC="yacc"
 if [ "${OS}" == "Darwin" ]; then
     YACC="/opt/homebrew/bin/byacc"
@@ -99,7 +99,7 @@ if [ "${OS}" == "Darwin" ]; then
             --exec-prefix="${INSTALL_DIR}" \
             CFLAGS="-fPIC -Wno-cast-align" \
             YACC="${YACC}"
-        make clean all
+        make -j${PROCS} clean all
         make install
         popd
     fi
@@ -107,7 +107,7 @@ if [ "${OS}" == "Darwin" ]; then
 elif [ "${OS}" == "Linux" ]; then
 
     if [ ! -e krb5 ]; then
-        git clone https://github.com/krb5/krb5.git
+        git clone --branch krb5-1.21.3-final https://github.com/krb5/krb5.git
     fi
 
     MAIN_CURDIR="$(pwd)"
@@ -118,21 +118,25 @@ elif [ "${OS}" == "Linux" ]; then
         CURDIR="$(pwd)"
         INSTALL_DIR="${CURDIR}/local-install/${TARGET_TRIPLE}"
         mkdir -p "${INSTALL_DIR}"
-        cd src
+        BUILD_DIR="${CURDIR}/local-build/${TARGET_TRIPLE}"
+        mkdir -p "${BUILD_DIR}"
+        pushd src
         export krb5_cv_attr_constructor_destructor=yes
         export ac_cv_func_regcomp=yes
         export ac_cv_printf_positional=yes
-        autoreconf
-        ./configure \
+        autoreconf --force
+        pushd ${BUILD_DIR}
+        ../../src/configure \
             --host=${TARGET_TRIPLE_FOR_CC} \
             --prefix="${INSTALL_DIR}" \
             --exec-prefix="${INSTALL_DIR}" \
-            --enable-static \
-            --disable-shared \
-            CFLAGS='-fPIC -Wno-cast-align'
-        make clean all
+             --enable-static \
+             --disable-shared \
+            CFLAGS='-fPIC -fcommon -Wno-cast-align'
+        make -j${PROCS}
         make install
-        cd ..
+        popd
+        popd
         popd
     fi
 
@@ -149,8 +153,8 @@ elif [ "${OS}" == "Linux" ]; then
             --exec-prefix="${INSTALL_DIR}" \
             CFLAGS="-fPIC -Wno-cast-align -I${KRB5_INSTALL_DIR}/include" \
             LDFLAGS="-L${KRB5_INSTALL_DIR}/lib" \
-            LIBS="-lgssapi_krb5 -lkrb5 -lcom_err -lgssrpc -lk5crypto -lkadm5clnt -lkadm5srv -lkdb5 -lkrad -lkrb5_db2 -lkrb5_k5tls -lkrb5_otp -lkrb5_spake -lkrb5support -lverto -lresolv"
-        make clean all
+            LIBS="-lgssapi_krb5 -lkrb5 -lcom_err -lgssrpc -lk5crypto -lkdb5 -lkrad -lkrb5_db2 -lkrb5_k5tls -lkrb5_otp -lkrb5_spake -lkrb5support -lverto -lresolv"
+        make -j${PROCS} clean all
         make install
         popd
     fi
