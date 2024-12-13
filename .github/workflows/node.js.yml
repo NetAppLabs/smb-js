@@ -35,7 +35,7 @@ jobs:
       if: runner.os == 'macOS'
       shell: bash
       run: |
-        brew install samba
+        brew install samba yacc
     - name: linux deps
       if: runner.os == 'Linux'
       shell: bash
@@ -44,7 +44,8 @@ jobs:
           libc6-dev-amd64-cross libc6-dev-arm64-cross \
           crossbuild-essential-arm64 crossbuild-essential-amd64 \
           gcc-aarch64-linux-gnu \
-          binfmt-support binutils binutils-aarch64-linux-gnu
+          binfmt-support binutils binutils-aarch64-linux-gnu \
+          yacc
     - uses: actions/checkout@v4
     - uses: mlugg/setup-zig@v1
     - uses: actions-rust-lang/setup-rust-toolchain@v1

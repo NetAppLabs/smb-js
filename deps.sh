@@ -15,7 +15,7 @@ if ! command -v git 2>&1 >/dev/null ; then
     fi
 fi
 
-git submodule update --init
+#git submodule update --init
 
 if ! command -v cargo 2>&1 >/dev/null ; then
     curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
@@ -80,50 +80,75 @@ elif [ "${OS}" == "Linux" ]; then
     fi
 fi
 
-if [ ! -e krb5 ]; then
-     git clone https://github.com/krb5/krb5.git
-fi
 
-MAIN_CURDIR="$(pwd)"
-KRB5_INSTALL_DIR="${MAIN_CURDIR}/krb5/local-install/${TARGET_TRIPLE}"
-
-if [ ! -e krb5/local-install/${TARGET_TRIPLE}/lib/krb5 ]; then
-     pushd krb5
-     CURDIR="$(pwd)"
-     INSTALL_DIR="${CURDIR}/local-install/${TARGET_TRIPLE}"
-     mkdir -p "${INSTALL_DIR}"
-     cd src
-     autoreconf
-     ./configure \
-        --host=${TARGET_TRIPLE_FOR_CC} \
-        --prefix="${INSTALL_DIR}" \
-        --exec-prefix="${INSTALL_DIR}" \
-        CFLAGS='-fPIC -Wno-cast-align'
-    make clean all
-    make install
-    cd ..
-    popd
-fi
-
+YACC="yacc"
 if [ "${OS}" == "Darwin" ]; then
-    KRB5_INSTALL_DIR="/opt/homebrew/opt/krb5"
-fi
+    YACC="/opt/homebrew/bin/byacc"
 
-if [ ! -f libsmb2/local-install/${TARGET_TRIPLE}/lib/libsmb2.a ]; then
-     pushd libsmb2
-     CURDIR="$(pwd)"
-     INSTALL_DIR="${CURDIR}/local-install/${TARGET_TRIPLE}"
-     mkdir -p "${INSTALL_DIR}"
-     chmod 775 ./bootstrap
-     ./bootstrap
-     ./configure \
-        --host=${TARGET_TRIPLE_FOR_CC} \
-        --prefix="${INSTALL_DIR}" \
-        --exec-prefix="${INSTALL_DIR}" \
-        CFLAGS="-fPIC -Wno-cast-align -I${KRB5_INSTALL_DIR}/include" \
-        LDFLAGS="-L${KRB5_INSTALL_DIR}/lib"
-     make clean all
-     make install
-     popd
-fi
+    if [ ! -f libsmb2/local-install/${TARGET_TRIPLE}/lib/libsmb2.a ]; then
+        pushd libsmb2
+        CURDIR="$(pwd)"
+        INSTALL_DIR="${CURDIR}/local-install/${TARGET_TRIPLE}"
+        mkdir -p "${INSTALL_DIR}"
+        chmod 775 ./bootstrap
+        ./bootstrap
+        ./configure \
+            --without-libkrb5 \
+            --host=${TARGET_TRIPLE_FOR_CC} \
+            --prefix="${INSTALL_DIR}" \
+            --exec-prefix="${INSTALL_DIR}" \
+            CFLAGS="-fPIC -Wno-cast-align" \
+            YACC="${YACC}"
+        make clean all
+        make install
+        popd
+    fi
 
+elif [ "${OS}" == "Linux" ]; then
+
+    if [ ! -e krb5 ]; then
+        git clone https://github.com/krb5/krb5.git
+    fi
+
+    MAIN_CURDIR="$(pwd)"
+    KRB5_INSTALL_DIR="${MAIN_CURDIR}/krb5/local-install/${TARGET_TRIPLE}"
+
+    if [ ! -e krb5/local-install/${TARGET_TRIPLE}/lib/krb5 ]; then
+        pushd krb5
+        CURDIR="$(pwd)"
+        INSTALL_DIR="${CURDIR}/local-install/${TARGET_TRIPLE}"
+        mkdir -p "${INSTALL_DIR}"
+        cd src
+        autoreconf
+        ./configure \
+            --host=${TARGET_TRIPLE_FOR_CC} \
+            --prefix="${INSTALL_DIR}" \
+            --exec-prefix="${INSTALL_DIR}" \
+            CFLAGS='-fPIC -Wno-cast-align'
+        make clean all
+        make install
+        cd ..
+        popd
+    fi
+
+    if [ ! -f libsmb2/local-install/${TARGET_TRIPLE}/lib/libsmb2.a ]; then
+        pushd libsmb2
+        CURDIR="$(pwd)"
+        INSTALL_DIR="${CURDIR}/local-install/${TARGET_TRIPLE}"
+        mkdir -p "${INSTALL_DIR}"
+        chmod 775 ./bootstrap
+        ./bootstrap
+        ./configure \
+            --host=${TARGET_TRIPLE_FOR_CC} \
+            --prefix="${INSTALL_DIR}" \
+            --exec-prefix="${INSTALL_DIR}" \
+            CFLAGS="-fPIC -Wno-cast-align -I${KRB5_INSTALL_DIR}/include" \
+            LDFLAGS="-L${KRB5_INSTALL_DIR}/lib"
+        make clean all
+        make install
+        popd
+    fi
+
+else
+    echo "unsupported platform ${OS}"
+fi
