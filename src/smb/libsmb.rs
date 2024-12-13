@@ -23,6 +23,7 @@ impl SMBConnection {
         let mut real_url = url;
         let mut smb = Smb::new()?;
         let mut passwd: Option<String> = None;
+        let mut domain: Option<String> = None;
         let pre_parse_url = Url::parse(real_url.as_str());
         match pre_parse_url {
             Ok(mut purl) => {
@@ -39,7 +40,21 @@ impl SMBConnection {
             },
             Err(_) => {},
         }
-        let conn_res = smb.parse_url_mount(real_url.as_str(), passwd);
+        let domain_env_var = std::env::var("SMB_DOMAIN");
+        match domain_env_var {
+            Ok(domain_str) => {
+                domain = Some(domain_str);
+            },
+            Err(_) => {},
+        }
+        let password_env_var = std::env::var("SMB_PASSWORD");
+        match password_env_var {
+            Ok(password_string) => {
+                passwd = Some(password_string);
+            },
+            Err(_) => {},
+        }
+        let conn_res = smb.parse_url_mount(real_url.as_str(), passwd, domain);
         match conn_res {
             Ok(_) => {
                 return Ok(Box::new(SMBConnection{smb: Arc::new(RwLock::new(smb))}));

@@ -516,6 +516,15 @@ impl Smb {
         }
     }
 
+    pub fn set_domain(&self, domain: &str) -> Result<()> {
+        let domain = CString::new(domain.as_bytes())?;
+        let ctx_ref = using_mutex!(self.context);
+        let ctx = *ctx_ref;
+        unsafe {
+            smb2_set_domain(ctx, domain.as_ptr());
+            Ok(())
+        }
+    }
     
     pub fn connect_share(&self, server: &str, share: &str, user: &str) -> Result<()> {
         let server = CString::new(server.as_bytes())?;
@@ -639,12 +648,19 @@ impl Smb {
     }
     
 
-    pub fn parse_url_mount(&mut self, url: &str, password: Option<String>) -> Result<()> {
+    pub fn parse_url_mount(&mut self, url: &str, password: Option<String>, domain: Option<String>) -> Result<()> {
         unsafe {
             match password {
                 Some(password_string) => {
                     let pstr = password_string.as_str();
                     let _ = self.set_password(pstr);
+                },
+                None => {},
+            };
+            match domain {
+                Some(domain_string) => {
+                    let dstr = domain_string.as_str();
+                    let _ = self.set_domain(dstr);
                 },
                 None => {},
             };
