@@ -69,6 +69,7 @@ jobs:
         name: smb-js-node-${{ matrix.settings.host }}--${{ matrix.settings.target }}
         path: |
           smb-js.*.node
+          lib
   publish:
     runs-on: ubuntu-24.04
     permissions:

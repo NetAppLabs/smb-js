@@ -121,6 +121,7 @@ elif [ "${OS}" == "Linux" ]; then
         BUILD_DIR="${CURDIR}/local-build/${TARGET_TRIPLE}"
         mkdir -p "${BUILD_DIR}"
         pushd src
+        # for cross compile to work
         export krb5_cv_attr_constructor_destructor=yes
         export ac_cv_func_regcomp=yes
         export ac_cv_printf_positional=yes

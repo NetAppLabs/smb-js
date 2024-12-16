@@ -78,7 +78,7 @@ trap kill_samba EXIT
 
 export RUST_BACKTRACE=1
 
-export SMB_URL="smb://guest@127.0.0.1:${SAMBA_PORT}/smbtest/test"
+export SMB_URL="smb://guest@127.0.0.1:${SAMBA_PORT}/smbtest/test?sec=ntlmssp"
 
 echo "Test using mocks"
 TEST_USING_MOCKS=1 yarn test-ava
