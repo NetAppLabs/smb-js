@@ -49,6 +49,8 @@ jobs:
     - uses: actions/checkout@v4
     - uses: mlugg/setup-zig@v1
     - uses: actions-rust-lang/setup-rust-toolchain@v1
+      with:
+        rustflags: ""
     - name: Use Node.js
       uses: actions/setup-node@v4
       with:
