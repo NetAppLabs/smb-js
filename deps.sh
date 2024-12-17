@@ -32,6 +32,17 @@ if ! command -v automake 2>&1 >/dev/null ; then
     fi
 fi
 
+if ! command -v yacc 2>&1 >/dev/null ; then
+    if command -v brew 2>&1 >/dev/null ; then
+        brew install byacc
+    elif command -v apt-get 2>&1 >/dev/null ; then
+        sudo apt-get update
+        sudo apt-get install -y byacc
+    else
+        echo "please install yacc"
+    fi
+fi
+
 OS=`uname -s`
 if [ "${OS}" == "Darwin" ]; then
     if ! command -v glibtool 2>&1 >/dev/null ; then
