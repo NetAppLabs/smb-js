@@ -15,11 +15,13 @@ fi
 SAMBA_CONFIG_DIR=`mktemp -d`
 mkdir -p ${SAMBA_CONFIG_DIR}/private
 mkdir -p ${SAMBA_CONFIG_DIR}/locks
+chmod 755 ${SAMBA_CONFIG_DIR}/locks
 echo "SAMBA_CONFIG_DIR: ${SAMBA_CONFIG_DIR}"
 SHARE_DIR=`mktemp -d`
 echo "SHARE_DIR: ${SHARE_DIR}"
 mkdir -p  ${SHARE_DIR}/test
 ./scripts/setup-testdir.sh ${SHARE_DIR}/test
+chmod -R 777 ${SHARE_DIR}
 
 SAMBA_PORT="10445"
 

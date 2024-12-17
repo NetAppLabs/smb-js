@@ -154,7 +154,7 @@ elif [ "${OS}" == "Linux" ]; then
             --exec-prefix="${INSTALL_DIR}" \
             CFLAGS="-fPIC -Wno-cast-align -I${KRB5_INSTALL_DIR}/include" \
             LDFLAGS="-L${KRB5_INSTALL_DIR}/lib" \
-            LIBS="-lgssapi_krb5 -lkrb5 -lcom_err -lgssrpc -lk5crypto -lkdb5 -lkrad -lkrb5_db2 -lkrb5_k5tls -lkrb5_otp -lkrb5_spake -lkrb5support -lverto -lresolv"
+            LIBS="-ldl -lgssapi_krb5 -lkrb5 -lcom_err -lgssrpc -lk5crypto -lkdb5 -lkrad -lkrb5_db2 -lkrb5_k5tls -lkrb5_otp -lkrb5_spake -lkrb5support -lverto -lresolv"
         make -j${PROCS} clean all
         make install
         popd
