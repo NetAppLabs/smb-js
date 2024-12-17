@@ -22,6 +22,7 @@ impl SMBConnection {
     pub(super) fn connect(url: String) -> Result<Box<dyn VFS>> {
         let mut real_url = url;
         let mut smb = Smb::new()?;
+        let mut user: Option<String> = None;
         let mut passwd: Option<String> = None;
         let mut domain: Option<String> = None;
         let pre_parse_url = Url::parse(real_url.as_str());
@@ -40,6 +41,13 @@ impl SMBConnection {
             },
             Err(_) => {},
         }
+        let user_env_var = std::env::var("SMB_USER");
+        match user_env_var {
+            Ok(user_str) => {
+                user = Some(user_str);
+            },
+            Err(_) => {},
+        }
         let domain_env_var = std::env::var("SMB_DOMAIN");
         match domain_env_var {
             Ok(domain_str) => {
@@ -54,7 +62,7 @@ impl SMBConnection {
             },
             Err(_) => {},
         }
-        let conn_res = smb.parse_url_mount(real_url.as_str(), passwd, domain);
+        let conn_res = smb.parse_url_mount(real_url.as_str(), user,passwd, domain);
         match conn_res {
             Ok(_) => {
                 return Ok(Box::new(SMBConnection{smb: Arc::new(RwLock::new(smb))}));
