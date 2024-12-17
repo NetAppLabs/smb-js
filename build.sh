@@ -29,11 +29,24 @@ SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 LIBSMB_BASE="${SCRIPT_DIR}/libsmb2"
 LIBSMB_BASE_INSTALL="${SCRIPT_DIR}/libsmb2/local-install/${TARGET_TRIPLE}"
-export LIBSMB_LIB_PATH="${LIBSMB_BASE_INSTALL}/lib"
+
+NODE_ARCH=`echo ${TARGET_TRIPLE} | awk -F '-' '{print $1}' | sed 's/aarch64/arm64/g' | sed 's/x86_64/x64/g'`
+NODE_PLATFORM=`echo ${TARGET_TRIPLE} | awk -F '-' '{print $2}'`
+NODE_OS=`echo ${TARGET_TRIPLE} | awk -F '-' '{print $3}'`
+NODE_OS_VARIANT=`echo ${TARGET_TRIPLE} | awk -F '-' '{print $4}'`
+
+LIBSMB_BASE_LIB_INSTALL_PATH="${LIBSMB_BASE_INSTALL}/lib"
+
+export LIBSMB_LIB_PATH="./lib/${NODE_OS}/${NODE_ARCH}"
+if [ -n "${NODE_OS_VARIANT}" ]; then
+  export LIBSMB_LIB_PATH="./lib/${NODE_OS}/${NODE_ARCH}/${NODE_OS_VARIANT}"
+fi
+mkdir -p ${LIBSMB_LIB_PATH}
+cp ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2* ${LIBSMB_LIB_PATH}/
 
 export LIBSMB_INCLUDE_PATH="${LIBSMB_BASE_INSTALL}/include"
 
-export LIBSMB_LINK_STATIC="true"
+export LIBSMB_LINK_STATIC="false"
 
 export DYLD_LIBRARY_PATH=${LIBSMB_LIB_PATH}:$DYLD_LIBRARY_PATH
 export LD_LIBRARY_PATH=${LIBSMB_LIB_PATH}:$LD_LIBRARY_PATH
@@ -45,4 +58,9 @@ if [ "$ARG1" == "test" ]; then
 else
   yarn build-tsc
   yarn build-napi --target ${TARGET_TRIPLE}
+fi
+
+if [ "${NODE_OS}" == "darwin" ]; then
+  # rewrite dylib search path after build for macos
+  install_name_tool -change ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.4.dylib @loader_path/lib/${NODE_OS}/${NODE_ARCH}/libsmb2.4.dylib smb-js.${NODE_OS}-${NODE_ARCH}.node
 fi
