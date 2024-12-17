@@ -32,6 +32,23 @@ if ! command -v automake 2>&1 >/dev/null ; then
     fi
 fi
 
+if command -v lsb_release 2>&1 >/dev/null ; then
+    lsb_rel_version=`lsb_release -c | grep '^Codename:' | awk -F ' ' '{print $2}'`
+    if [ "${lsb_rel_version}" == "focal" ]; then
+        # install backported autoconf 2.71 backported for ubuntu 20.04 / focal
+        sudo apt-get update
+        sudo apt-get install software-properties-common
+        sudo add-apt-repository ppa:savoury1/build-tools -y
+        sudo apt-get -y install autoconf2.71
+    fi
+fi
+
+# libssl
+# sudo dpkg --add-architecture arm64
+# sudo dpkg --add-architecture amd64
+# sudo apt-get update
+# sudo apt install --no-install-recommends libssl-dev:arm64 libssl-dev:amd64
+
 if ! command -v yacc 2>&1 >/dev/null ; then
     if command -v brew 2>&1 >/dev/null ; then
         brew install byacc
