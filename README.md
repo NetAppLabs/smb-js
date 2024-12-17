@@ -20,12 +20,14 @@ yarn add @netapplabs/smb-js
 
 # Usage
 
-Example JavasScript usage:
+### Example JavasScript usage using Local (NT authentication):
+
+Note: May need to have "?sec=ntlmssp" argument on the URL connection string.
 
 ```
 import { SmbDirectoryHandle, SmbFileHandle } from '@netapplabs/smb-js'
 
-let smbURL="smb://myuser:mypassword@127.0.0.1:445/share";
+let smbURL="smb://myuser:mypassword@127.0.0.1:445/share?sec=ntlmssp";
 rootDir = new SmbDirectoryHandle(smbURL);
 let subPath = "sub-dir";
 let subDir = await rootDir.getDirectoryHandle(subPath);
@@ -34,6 +36,32 @@ let subFile = await subFileHandle.getFile();
 const textContents = await subFile.text();
 console.log("textContents: ", textContents);
 ```
+
+### Example JavasScript usage using AD authentication:
+
+Note: May need to have "?sec=krb5cc" argument on the URL connection string.
+
+
+Needs to have environment variables SMB_USER, SMB_PASSWORD and SMB_DOMAIN set before connecting.
+
+```
+import { default as process } from 'node:process'
+import { SmbDirectoryHandle, SmbFileHandle } from '@netapplabs/smb-js'
+
+process.env.SMB_USER="<ad-user>";
+process.env.SMB_PASSWORD="<ad-password>";
+process.env.SMB_DOMAIN="<ad-domain>";
+
+let smbURL="smb://127.0.0.1:445/share?sec=krb5cc";
+rootDir = new SmbDirectoryHandle(smbURL);
+let subPath = "sub-dir";
+let subDir = await rootDir.getDirectoryHandle(subPath);
+let subFileHandle = await subDir.getFileHandle("sub-file")
+let subFile = await subFileHandle.getFile();
+const textContents = await subFile.text();
+console.log("textContents: ", textContents);
+```
+
 
 
 ## Support matrix
@@ -45,7 +73,6 @@ console.log("textContents: ", textContents);
 | macOS x64        | ✓      | ✓      | ✓      |
 | macOS arm64      | ✓      | ✓      | ✓      |
 | Linux x64 gnu    | ✓      | ✓      | ✓      |
-| Linux arm64 gnu  | ✓      | ✓      | ✓      |
 
 ## Ability
 
