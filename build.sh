@@ -37,12 +37,24 @@ NODE_OS_VARIANT=`echo ${TARGET_TRIPLE} | awk -F '-' '{print $4}'`
 
 LIBSMB_BASE_LIB_INSTALL_PATH="${LIBSMB_BASE_INSTALL}/lib"
 
+SMB_JS_LIB_VER="4"
+
 export LIBSMB_LIB_PATH="./lib/${NODE_OS}/${NODE_ARCH}"
 if [ -n "${NODE_OS_VARIANT}" ]; then
   export LIBSMB_LIB_PATH="./lib/${NODE_OS}/${NODE_ARCH}/${NODE_OS_VARIANT}"
 fi
 mkdir -p ${LIBSMB_LIB_PATH}
-cp ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2* ${LIBSMB_LIB_PATH}/
+if [ "${NODE_OS}" == "darwin" ]; then
+  cp ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.${SMB_JS_LIB_VER}.dylib ${LIBSMB_LIB_PATH}/
+  pushd ${LIBSMB_LIB_PATH}
+  ln -s libsmb2.${SMB_JS_LIB_VER}.dylib libsmb2.dylib
+  popd
+elif [ "${NODE_OS}" == "linux" ]; then
+  cp ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.so.${SMB_JS_LIB_VER} ${LIBSMB_LIB_PATH}/
+  pushd ${LIBSMB_LIB_PATH}
+  ln -s libsmb2.so.${SMB_JS_LIB_VER} libsmb2.so
+  popd
+fi
 
 export LIBSMB_INCLUDE_PATH="${LIBSMB_BASE_INSTALL}/include"
 
@@ -62,5 +74,5 @@ fi
 
 if [ "${NODE_OS}" == "darwin" ]; then
   # rewrite dylib search path after build for macos
-  install_name_tool -change ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.4.dylib @loader_path/lib/${NODE_OS}/${NODE_ARCH}/libsmb2.4.dylib smb-js.${NODE_OS}-${NODE_ARCH}.node
+  install_name_tool -change ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.${SMB_JS_LIB_VER}.dylib @loader_path/lib/${NODE_OS}/${NODE_ARCH}/libsmb2.${SMB_JS_LIB_VER}.dylib smb-js.${NODE_OS}-${NODE_ARCH}.node
 fi
