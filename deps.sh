@@ -120,11 +120,12 @@ if [ "${OS}" == "Darwin" ]; then
         chmod 775 ./bootstrap
         ./bootstrap
         ./configure \
-            --without-libkrb5 \
+            --disable-werror \
             --host=${TARGET_TRIPLE_FOR_CC} \
             --prefix="${INSTALL_DIR}" \
             --exec-prefix="${INSTALL_DIR}" \
-            CFLAGS="-fPIC -Wno-cast-align" \
+            CFLAGS="-fPIC" \
+            LDFLAGS="-framework GSS" \
             YACC="${YACC}"
         make -j${PROCS} clean all
         make install
@@ -153,9 +154,9 @@ elif [ "${OS}" == "Linux" ]; then
             mkdir -p ${OPENSSL_INSTALL_DIR}
             echo "building openssl for cross compile"
             if [ "${HOST_ARCH}" == "x86_64" ]; then
-                sudo add-apt-repository -s "deb http://archive.ubuntu.com/ubuntu $(lsb_release -sc) main restricted universe multiverse"
+                sudo add-apt-repository -s "deb http://archive.ubuntu.com/ubuntu $(lsb_release -sc) main restricted universe multiverse" -y
             else
-                sudo add-apt-repository -s "deb http://ports.ubuntu.com/ubuntu-ports $(lsb_release -sc) main restricted universe multiverse"
+                sudo add-apt-repository -s "deb http://ports.ubuntu.com/ubuntu-ports $(lsb_release -sc) main restricted universe multiverse" -y
             fi
             apt-get source openssl
             OPENSSL_VER=`apt-cache showsrc openssl | grep '^Version' | awk '{print $2}' | awk -F '-' '{print $1}'`
@@ -207,10 +208,13 @@ elif [ "${OS}" == "Linux" ]; then
         pushd libsmb2
         CURDIR="$(pwd)"
         INSTALL_DIR="${CURDIR}/local-install/${TARGET_TRIPLE}"
+        BUILD_DIR="${CURDIR}/local-build/${TARGET_TRIPLE}"
+        mkdir -p "${BUILD_DIR}"
         mkdir -p "${INSTALL_DIR}"
         chmod 775 ./bootstrap
         ./bootstrap
-        ./configure \
+        pushd ${BUILD_DIR}
+        ../../configure \
             --host=${TARGET_TRIPLE_FOR_CC} \
             --prefix="${INSTALL_DIR}" \
             --exec-prefix="${INSTALL_DIR}" \
@@ -219,6 +223,7 @@ elif [ "${OS}" == "Linux" ]; then
             LIBS="-ldl -lgssapi_krb5 -lkrb5 -lcom_err -lgssrpc -lk5crypto -lkdb5 -lkrad -lkrb5_db2 -lkrb5_k5tls -lkrb5_otp -lkrb5_spake -lkrb5support -lverto -lresolv"
         make -j${PROCS} clean all
         make install
+        popd
         popd
     fi
 

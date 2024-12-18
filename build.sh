@@ -37,7 +37,8 @@ NODE_OS_VARIANT=`echo ${TARGET_TRIPLE} | awk -F '-' '{print $4}'`
 
 LIBSMB_BASE_LIB_INSTALL_PATH="${LIBSMB_BASE_INSTALL}/lib"
 
-SMB_JS_LIB_VER="4"
+SMB_JS_LIB_FULL_VER=`cat ${LIBSMB_BASE_LIB_INSTALL_PATH}/pkgconfig/libsmb2.pc | grep '^Version:' | awk '{print $2}'`
+SMB_JS_LIB_VER=`echo ${SMB_JS_LIB_FULL_VER} | awk -F '.' '{print $1}'`
 
 export LIBSMB_LIB_PATH="./lib/${NODE_OS}/${NODE_ARCH}"
 if [ -n "${NODE_OS_VARIANT}" ]; then
@@ -45,15 +46,10 @@ if [ -n "${NODE_OS_VARIANT}" ]; then
 fi
 mkdir -p ${LIBSMB_LIB_PATH}
 if [ "${NODE_OS}" == "darwin" ]; then
-  cp ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.${SMB_JS_LIB_VER}.dylib ${LIBSMB_LIB_PATH}/
-  pushd ${LIBSMB_LIB_PATH}
-  ln -s libsmb2.${SMB_JS_LIB_VER}.dylib libsmb2.dylib
-  popd
+  cp -R ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.${SMB_JS_LIB_VER}.dylib ${LIBSMB_LIB_PATH}/
+  cp -R ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.dylib ${LIBSMB_LIB_PATH}/
 elif [ "${NODE_OS}" == "linux" ]; then
-  cp ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.so.${SMB_JS_LIB_VER} ${LIBSMB_LIB_PATH}/
-  pushd ${LIBSMB_LIB_PATH}
-  ln -s libsmb2.so.${SMB_JS_LIB_VER} libsmb2.so
-  popd
+  cp -R ${LIBSMB_BASE_LIB_INSTALL_PATH}/libsmb2.so* ${LIBSMB_LIB_PATH}/
 fi
 
 export LIBSMB_INCLUDE_PATH="${LIBSMB_BASE_INSTALL}/include"

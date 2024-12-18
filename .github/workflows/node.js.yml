@@ -67,7 +67,7 @@ jobs:
     - name: Upload node module
       uses: actions/upload-artifact@v4
       with:
-        name: smb-js-node-${{ matrix.settings.host }}--${{ matrix.settings.target }}
+        name: smb-js-node-${{ matrix.settings.host }}-${{ matrix.settings.target }}
         path: |
           smb-js.*.node
           lib
