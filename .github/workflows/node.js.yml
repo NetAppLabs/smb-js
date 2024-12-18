@@ -5,9 +5,9 @@ name: CI
 
 on:
   push:
-    branches: [ "main", "npm" ]
+    branches: [ "*" ]
   pull_request:
-    branches: [ "main" , "npm" ]
+    branches: [ "*" ]
 
 env:
   CARGO_TERM_COLOR: always
@@ -70,8 +70,9 @@ jobs:
           lib
   publish:
     runs-on: ubuntu-20.04
+    if: ${{ github.ref == 'refs/heads/main' }}
     permissions:
-      contents: read
+      contents: write
       packages: write
     needs: build
     steps:
@@ -83,12 +84,29 @@ jobs:
           cache: 'yarn'
           registry-url: 'https://npm.pkg.github.com'
           scope: '@netapplabs'
+  
       - name: Download Artifact
         uses: actions/download-artifact@v4
         with:
           pattern: smb-js-node-*
           merge-multiple: true
+  
+      - name: Setup git
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+
+      - name: Bump version
+        run: npx standard-version
+        
       - name: Publish Artifacts
         run: npm publish --ignore-scripts
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Commit and push version bump
+        run: |
+          git push
+
+  
+  
