@@ -62,8 +62,6 @@ const textContents = await subFile.text();
 console.log("textContents: ", textContents);
 ```
 
-
-
 ## Support matrix
 
 ### Operating Systems
@@ -73,6 +71,7 @@ console.log("textContents: ", textContents);
 | macOS x64        | ✓      | ✓      | ✓      |
 | macOS arm64      | ✓      | ✓      | ✓      |
 | Linux x64 gnu    | ✓      | ✓      | ✓      |
+| Linux arm64 gnu  | ✓      | ✓      | ✓      |
 
 ## Ability
 
