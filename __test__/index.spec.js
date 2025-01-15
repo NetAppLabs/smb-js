@@ -1125,3 +1125,35 @@ ava_1.default.serial('should handle getting directories concurrently', async (t)
         t.is(quatre.name, 'quatre');
     }
 });
+ava_1.default.serial('should handle watch', async (t) => {
+    if (node_process_1.default.env.TEST_USING_MOCKS) {
+        t.pass("n/a for mocks");
+        return;
+    }
+    const sleep = async (ms) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
+    const rootHandle = await getRootHandle();
+    const smbHandle = rootHandle;
+    let caught = { path: "", action: "" };
+    smbHandle.watch(async (watchEvent) => {
+        if (!watchEvent || watchEvent.path !== "watch_event_file" || watchEvent.action !== "create") {
+            console.log("watch caught something unexpected:", watchEvent, new Date());
+        }
+        caught = watchEvent;
+    });
+    await sleep(500)
+        .then(async () => {
+        // console.log("post-sleep");
+        const rootHandleAlt = await getRootHandle();
+        // console.log("obtained root handle");
+        const fileHandle = await rootHandleAlt.getFileHandle("watch_event_file", { create: true });
+        // console.log("obtained file handle");
+        const writable = await fileHandle.createWritable();
+        // console.log("obtained writable");
+        const writer = await writable.getWriter();
+        // console.log("obtained writer");
+        await writer.write("eventful");
+        // console.log("finished writing");
+    });
+    // console.log("done watching", new Date());
+    t.deepEqual(caught, { path: "watch_event_file", action: "create" });
+});

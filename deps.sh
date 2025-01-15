@@ -127,8 +127,8 @@ if [ "${OS}" == "Darwin" ]; then
             CFLAGS="-fPIC" \
             LDFLAGS="-framework GSS" \
             YACC="${YACC}"
-        make -j${PROCS} clean all
-        make install
+        make clean
+        make -j${PROCS} install
         popd
     fi
 
