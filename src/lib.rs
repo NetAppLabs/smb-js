@@ -8,7 +8,7 @@ use send_wrapper::SendWrapper;
 use std::{path::Path, sync::{Arc, RwLock, RwLockWriteGuard}, thread};
 
 mod smb;
-use smb::{VFSEntryType, VFSFileNotificationInformation, VFSFileNotification, VFSFileNotificationOperation, VFSWatchMode, VFS};
+use smb::{VFSEntryType, VFSFileNotificationInformation, VFSFileNotification, VFSFileNotificationBoxed, VFSFileNotificationOperation, VFSWatchMode, VFS};
 
 /*
 
@@ -109,6 +109,7 @@ interface Blob {
 
 const FIELD_KIND: &str = "kind";
 const FIELD_NAME: &str = "name";
+const FIELD_URL: &str = "url";
 const FIELD_PATH: &str = "path";
 const FIELD_DATA: &str = "data";
 const FIELD_TYPE: &str = "type";
@@ -321,6 +322,7 @@ impl Default for JsSmbCreateWritableOptions {
 #[napi]
 pub struct JsSmbHandle {
   smb: Option<Arc<RwLock<Box<dyn VFS>>>>,
+  url: String,
   path: String,
   #[napi(readonly, ts_type="'directory' | 'file'")]
   pub kind: String,
@@ -332,15 +334,23 @@ pub struct JsSmbHandle {
 impl JsSmbHandle {
 
   pub fn open(url: String) -> Result<Self> {
-    let conn_res = smb::connect(url);
+    Self::open_path(url, DIR_ROOT.into(), KIND_DIRECTORY.into(), DIR_ROOT.into())
+  }
+
+  fn open_path(url: String, path: String, kind: String, name: String) -> Result<Self> {
+    let conn_res = smb::connect(url.to_owned());
     match conn_res {
       Ok(conn) => {
-        return Ok(Self{smb: Some(Arc::new(RwLock::new(conn))), path: DIR_ROOT.into(), kind: KIND_DIRECTORY.into(), name: DIR_ROOT.into()});
+        return Ok(Self{smb: Some(Arc::new(RwLock::new(conn))), url, path, kind, name});
       },
       Err(e) => {
         return Err(e.into())
       },
     }
+  }
+
+  fn clone_with_new_connection(&self) -> Result<Self> {
+    Self::open_path(self.url.to_owned(), self.path.to_owned(), self.kind.to_owned(), self.name.to_owned())
   }
 
   fn is_same(&self, other: &JsSmbHandle) -> bool {
@@ -400,8 +410,9 @@ impl FromNapiValue for JsSmbHandle {
         let obj = Object::from_napi_value(env, napi_val)?;
         let kind = obj.get::<&str, &str>(FIELD_KIND)?.unwrap_or_default().into();
         let name = obj.get::<&str, &str>(FIELD_NAME)?.unwrap_or_default().into();
+        let url = obj.get::<&str, &str>(FIELD_URL)?.unwrap_or_default().into();
         let path = obj.get::<&str, &str>(FIELD_PATH)?.unwrap_or_default().into();
-        Ok(Self{smb: None, path, kind, name})
+        Ok(Self{smb: None, url, path, kind, name})
       },
       |handle| Ok(handle.to_owned())
     )
@@ -474,7 +485,7 @@ impl JsSmbDirectoryHandle {
           _ => (KIND_FILE.into(), format_file_path(&self.handle.path, &name))
         };
         if kind != KIND_DIRECTORY || (name != DIR_CURRENT && name != DIR_PARENT) {
-          entries.push(JsSmbHandle{smb: self.handle.smb.clone(), path, kind, name});
+          entries.push(JsSmbHandle{smb: self.handle.smb.clone(), url: self.handle.url.to_owned(), path, kind, name});
         }
       }
     }
@@ -513,7 +524,7 @@ impl JsSmbDirectoryHandle {
     let smb = &self.handle.smb;
     let my_smb = using_rwlock!(smb);
     let _ = my_smb.mkdir(path.trim_end_matches('/'), 0o775)?;
-    Ok(JsSmbHandle{smb: self.handle.smb.clone(), path, kind: KIND_DIRECTORY.into(), name}.into())
+    Ok(JsSmbHandle{smb: self.handle.smb.clone(), url: self.handle.url.to_owned(), path, kind: KIND_DIRECTORY.into(), name}.into())
   }
 
   #[napi]
@@ -533,7 +544,7 @@ impl JsSmbDirectoryHandle {
     let smb = &self.handle.smb;
     let mut my_smb = using_rwlock!(smb);
     let _ = my_smb.create(path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32, (Mode::S_IRUSR | Mode::S_IWUSR | Mode::S_IRGRP | Mode::S_IWGRP | Mode::S_IROTH | Mode::S_IWOTH).bits() as u32)?; // XXX: change mode value to 0o664?
-    Ok(JsSmbHandle{smb: self.handle.smb.clone(), path, kind: KIND_FILE.into(), name}.into())
+    Ok(JsSmbHandle{smb: self.handle.smb.clone(), url: self.handle.url.to_owned(), path, kind: KIND_FILE.into(), name}.into())
   }
 
   fn smb_remove(&self, entry: &JsSmbHandle, recursive: bool) -> Result<()> {
@@ -595,31 +606,27 @@ impl JsSmbDirectoryHandle {
 
   #[napi]
   pub fn watch(&self, callback: JsFunction) -> Result<()> {
-    let tsfn: ThreadsafeFunction<Result<JsSmbNotifyChange>, ErrorStrategy::Fatal> = callback
-        .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<JsSmbNotifyChange, Error>>| {
-            match ctx.value {
-              Ok(value) => {
-                Ok(vec![value])
-              },
-              Err(err) => {
-                Err(err)
-              },
-            }
+    let tsfn: ThreadsafeFunction<Result<VFSFileNotificationInformation>, ErrorStrategy::Fatal> = callback
+        .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<VFSFileNotificationInformation, Error>>| {
+          ctx.value.map(|info| {
+            let conv: JsSmbNotifyChange = info.into();
+            // println!("watch callback - path={} action={}", &conv.path, &conv.action);
+            vec![conv]
+          })
         })?;
 
-    let handle = self.handle.clone();
+    let handle = self.handle.clone_with_new_connection()?;
     //spawn(async move  {
     thread::spawn(move || {
 
-        fn watch_file_path(handle: &JsSmbHandle) -> Result<Vec<JsSmbNotifyChange>> {
+        fn watch_file_path(handle: &JsSmbHandle) -> Result<VFSFileNotificationBoxed> {
           let smb = &handle.smb;
           let path = &handle.path;
           let my_smb = using_rwlock!(smb);
           let watch_mode = VFSWatchMode::Recursive;
           let listen_flags = VFSFileNotificationOperation::all();
           
-          let res = my_smb.watch(path, watch_mode, listen_flags)?;  
-          Ok(res.into())
+          Ok(my_smb.watch(path, watch_mode, listen_flags)?)
         }
 
         let run_in_loop = true;
@@ -628,11 +635,14 @@ impl JsSmbDirectoryHandle {
           let res_contents = watch_file_path(&handle);
           match res_contents {
             Ok(contents) => {
-              for item in contents.iter() {
-                let item_owned = item.to_owned();
-                tsfn.call(Ok(item_owned), ThreadsafeFunctionCallMode::NonBlocking);
-              }    
-            }
+              for item in contents.into_iter() {
+                let it = match item {
+                  Ok(itm) => Ok(itm),
+                  Err(err) => Err(err.into()),
+                };
+                tsfn.call(it, ThreadsafeFunctionCallMode::NonBlocking);
+              }
+            },
             Err(_) => {}
           }
         }
@@ -738,11 +748,12 @@ impl From<Box<dyn VFSFileNotification>> for Vec<JsSmbNotifyChange> {
 
 impl From<VFSFileNotificationInformation> for JsSmbNotifyChange {
     fn from(value: VFSFileNotificationInformation) -> Self {
-        let ret = JsSmbNotifyChange{
-          path: value.path,
-          action: value.operation.into(),
-        };
-        return ret;
+      let action = value.operation.into();
+      // println!("From<VFSFileNotificationInformation> for JsSmbNotifyChange - path={} action={}", &value.path, &action);
+      Self{
+        path: value.path,
+        action,
+      }
     }
 }
 
