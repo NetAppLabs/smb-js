@@ -340,9 +340,13 @@ impl Iterator for SMBFileNotification2 {
     type Item = Result<VFSFileNotificationInformation>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.notification.next().map(|res| res.map(|entry| VFSFileNotificationInformation{
-            path: entry.path,
-            operation: VFSFileNotificationOperation::my_from(entry.action),
+        self.notification.next().map(|res| res.map(|entry| {
+            let operation = VFSFileNotificationOperation::my_from(entry.action).to_owned();
+            // println!("Iterator for SMBFileNotification2 - path={:?} operation={:?}", &entry.path, &operation);
+            VFSFileNotificationInformation{
+                path: entry.path.to_owned(),
+                operation,
+            }
         }))
     }
 

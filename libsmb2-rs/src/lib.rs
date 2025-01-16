@@ -210,6 +210,7 @@ impl Drop for SmbFile {
 pub struct SmbNotifyChangeInformation {
     smb: Arc<SmbPtr>,
     info_handle: *mut smb2_file_notify_change_information,
+    next: *mut smb2_file_notify_change_information,
 }
 
 #[derive(Clone)]
@@ -383,6 +384,7 @@ impl Smb {
             Ok(SmbNotifyChangeInformation {
                 smb: Arc::clone(&self.context),
                 info_handle: change_handle,
+                next: change_handle,
             })
         }
     }
@@ -1023,7 +1025,7 @@ impl Iterator for SmbNotifyChangeInformation {
     fn next(&mut self) -> Option<Self::Item> {
         unsafe {
 
-            let info_handle = self.info_handle;
+            let info_handle = self.next;
             if info_handle.is_null() {
                 None
             } else {
@@ -1033,13 +1035,17 @@ impl Iterator for SmbNotifyChangeInformation {
                 path = path.replace("\\", "/");
 
                 let int_action = (*info_handle).action;
-                let action = SmbChangeNotifyAction::from(int_action);
-                match action {
-                    Ok(act) => {
-                        self.info_handle = (*info_handle).next;
+                let enum_action = SmbChangeNotifyAction::from(int_action);
+                match enum_action {
+                    Ok(action) => {
+                        self.next = (*info_handle).next;
+                        // if !self.next.is_null() {
+                        //     println!("Iterator for SmbNotifyChangeInformation - self.next.is_null() = false");
+                        // }
+                        // println!("Iterator for SmbNotifyChangeInformation - path={:?} action={:?}", &path, &int_action);
                         Some(Ok(NotifyChangeInformation {
-                            path: path,
-                            action: act,
+                            path,
+                            action: action.to_owned(),
                         }))
                     },
                     Err(_) => {

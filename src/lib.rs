@@ -610,7 +610,7 @@ impl JsSmbDirectoryHandle {
         .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<VFSFileNotificationInformation, Error>>| {
           ctx.value.map(|info| {
             let conv: JsSmbNotifyChange = info.into();
-            // println!("watch callback - path={} action={}", &conv.path, &conv.action);
+            // println!("watch callback - path={:?} action={:?}", &conv.path, &conv.action);
             vec![conv]
           })
         })?;
@@ -748,10 +748,10 @@ impl From<Box<dyn VFSFileNotification>> for Vec<JsSmbNotifyChange> {
 
 impl From<VFSFileNotificationInformation> for JsSmbNotifyChange {
     fn from(value: VFSFileNotificationInformation) -> Self {
-      let action = value.operation.into();
-      // println!("From<VFSFileNotificationInformation> for JsSmbNotifyChange - path={} action={}", &value.path, &action);
+      let action = Into::<String>::into(value.operation).to_owned();
+      // println!("From<VFSFileNotificationInformation> for JsSmbNotifyChange - path={:?} action={:?}", &value.path, &action);
       Self{
-        path: value.path,
+        path: value.path.to_owned(),
         action,
       }
     }
