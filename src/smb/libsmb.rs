@@ -3,10 +3,10 @@ use std::path::Path;
 use std::sync::{Arc, RwLock};
 use nix::sys::stat::Mode;
 use nix::fcntl::OFlag;
-use libsmb2_rs::{Smb, SmbChangeNotifyAction, SmbChangeNotifyFileFilter, SmbChangeNotifyFlags, SmbNotifyChangeInformation};
+use libsmb2_rs::{Smb, SmbChangeNotifyAction, SmbChangeNotifyFileFilter, SmbChangeNotifyFlags};
 use url::Url;
 
-use super::{Result, VFSDirEntry, VFSDirectory, VFSFile, VFSFileNotificationInformation, VFSFileNotification, VFSFileNotificationBoxed, VFSFileNotificationOperation, VFSFileNotificationOperationFlags, VFSStat, VFSWatchMode, Time, VFS};
+use super::{Result, VFSDirEntry, VFSDirectory, VFSFile, VFSFileNotificationOperation, VFSFileNotificationOperationFlags, VFSStat, VFSWatchMode, Time, VFS};
 
 macro_rules! using_rwlock {
     ( $rwlock:expr ) => {
@@ -146,15 +146,13 @@ impl VFS for SMBConnection {
         let my_smb = using_rwlock!(self.smb);
         my_smb.truncate(Path::new(smb_path), len)
     }
-    
-    fn watch(&self, path: &str, mode: super::VFSWatchMode, listen_events: super::VFSFileNotificationOperationFlags) -> Result<VFSFileNotificationBoxed> {
+
+    fn watch(&self, path: &str, mode: VFSWatchMode, listen_events: VFSFileNotificationOperationFlags, cb: Box<dyn super::VFSNotifyChangeCallback>) {
         let smb_path = normalize_smb_path(path);
         let my_smb = using_rwlock!(self.smb);
         let notify_flags = SmbChangeNotifyFlags::my_from(mode);
         let notify_filter = SmbChangeNotifyFileFilter::my_from(listen_events);
-        let notify_change = my_smb.notify_change(Path::new(smb_path), notify_flags, notify_filter)?;
-        let ret = VFSFileNotificationBoxed::my_from(notify_change);
-        return Ok(ret);
+        my_smb.notify_change(Path::new(smb_path), notify_flags, notify_filter, Box::new(super::NotifyChangeCallback{inner: cb}));
     }
 }
 
@@ -236,13 +234,6 @@ impl MyFrom<SmbChangeNotifyAction> for VFSFileNotificationOperation {
     }
 }
 
-impl MyFrom<SmbNotifyChangeInformation> for VFSFileNotificationBoxed {
-    fn my_from(value: SmbNotifyChangeInformation) -> Self {
-        let not = SMBFileNotification2{notification: value };
-        return Box::new(not);
-    }
-}
-
 pub fn normalize_smb_path(path: &str) -> &str {
     let mut real_path = path;
     let real_path_replaced = real_path.strip_prefix("/");
@@ -320,34 +311,4 @@ impl VFSFile for SMBFile2 {
     fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<u32> {
         self.file.pwrite(buffer, offset).map(|res| res as u32)
     }
-}
-
-
-pub struct SMBFileNotification2 {
-    notification: libsmb2_rs::SmbNotifyChangeInformation,
-}
-
-impl VFSFileNotification for SMBFileNotification2 {
-}
-
-impl Debug for SMBFileNotification2 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SMBFileNotification2").finish()
-    }
-}
-
-impl Iterator for SMBFileNotification2 {
-    type Item = Result<VFSFileNotificationInformation>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.notification.next().map(|res| res.map(|entry| {
-            let operation = VFSFileNotificationOperation::my_from(entry.action).to_owned();
-            // println!("Iterator for SMBFileNotification2 - path={:?} operation={:?}", &entry.path, &operation);
-            VFSFileNotificationInformation{
-                path: entry.path.to_owned(),
-                operation,
-            }
-        }))
-    }
-
 }

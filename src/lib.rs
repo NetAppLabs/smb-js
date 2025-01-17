@@ -8,7 +8,7 @@ use send_wrapper::SendWrapper;
 use std::{path::Path, sync::{Arc, RwLock, RwLockWriteGuard}, thread};
 
 mod smb;
-use smb::{VFSEntryType, VFSFileNotificationInformation, VFSFileNotification, VFSFileNotificationBoxed, VFSFileNotificationOperation, VFSWatchMode, VFS};
+use smb::{VFSEntryType, VFSFileNotificationOperation, VFSNotifyChangeCallback, VFSWatchMode, VFS};
 
 /*
 
@@ -606,50 +606,35 @@ impl JsSmbDirectoryHandle {
 
   #[napi]
   pub fn watch(&self, callback: JsFunction) -> Result<()> {
-    let tsfn: ThreadsafeFunction<Result<VFSFileNotificationInformation>, ErrorStrategy::Fatal> = callback
-        .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<VFSFileNotificationInformation, Error>>| {
-          ctx.value.map(|info| {
-            let conv: JsSmbNotifyChange = info.into();
-            // println!("watch callback - path={:?} action={:?}", &conv.path, &conv.action);
-            vec![conv]
-          })
-        })?;
+    let tsfn: ThreadsafeFunction<Result<(String, String)>, ErrorStrategy::Fatal> = callback
+      .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<(String, String), Error>>| {
+        ctx.value.map(|(path, action)| {
+          vec![JsSmbNotifyChange{path, action}]
+        })
+      })?;
 
     let handle = self.handle.clone_with_new_connection()?;
-    //spawn(async move  {
     thread::spawn(move || {
-
-        fn watch_file_path(handle: &JsSmbHandle) -> Result<VFSFileNotificationBoxed> {
-          let smb = &handle.smb;
-          let path = &handle.path;
-          let my_smb = using_rwlock!(smb);
-          let watch_mode = VFSWatchMode::Recursive;
-          let listen_flags = VFSFileNotificationOperation::all();
-          
-          Ok(my_smb.watch(path, watch_mode, listen_flags)?)
-        }
-
-        let run_in_loop = true;
-        
-        while run_in_loop {
-          let res_contents = watch_file_path(&handle);
-          match res_contents {
-            Ok(contents) => {
-              for item in contents.into_iter() {
-                let it = match item {
-                  Ok(itm) => Ok(itm),
-                  Err(err) => Err(err.into()),
-                };
-                tsfn.call(it, ThreadsafeFunctionCallMode::NonBlocking);
-              }
-            },
-            Err(_) => {}
-          }
-        }
+      let smb = &handle.smb;
+      let path = &handle.path;
+      let my_smb = using_rwlock!(smb);
+      let watch_mode = VFSWatchMode::Recursive;
+      let listen_flags = VFSFileNotificationOperation::all();
+      let cb = Box::new(JsSmbDirectoryHandleWatch{tsfn});
+      my_smb.watch(path, watch_mode, listen_flags, cb);
     });
     Ok(())
   }
+}
 
+struct JsSmbDirectoryHandleWatch {
+  tsfn: ThreadsafeFunction<Result<(String, String)>, ErrorStrategy::Fatal>,
+}
+
+impl VFSNotifyChangeCallback for JsSmbDirectoryHandleWatch {
+  fn call(&self, path: String, action: String) {
+    self.tsfn.call(Ok((path, action)), ThreadsafeFunctionCallMode::NonBlocking);
+  }
 }
 
 impl From<JsSmbHandle> for JsSmbDirectoryHandle {
@@ -733,39 +718,7 @@ impl JsSmbFileHandle {
   }
 }
 
-impl From<Box<dyn VFSFileNotification>> for Vec<JsSmbNotifyChange> {
-    fn from(value: Box<dyn VFSFileNotification>) -> Self {
-      let ret: Vec<JsSmbNotifyChange> = value.into_iter().filter_map(|res| 
-        match res {
-            Ok(res) => Some(res.into()),
-            Err(_) => None,
-        }
-      )
-      .collect();
-      return ret;
-    }
-}
-
-impl From<VFSFileNotificationInformation> for JsSmbNotifyChange {
-    fn from(value: VFSFileNotificationInformation) -> Self {
-      let action = Into::<String>::into(value.operation).to_owned();
-      // println!("From<VFSFileNotificationInformation> for JsSmbNotifyChange - path={:?} action={:?}", &value.path, &action);
-      Self{
-        path: value.path.to_owned(),
-        action,
-      }
-    }
-}
-
-impl From<VFSFileNotificationOperation> for std::string::String {
-    fn from(value: VFSFileNotificationOperation) -> Self {
-        let s = format!("{}", value);
-        return s;
-    }
-}
-
 impl From<JsSmbHandle> for JsSmbFileHandle {
-
   fn from(handle: JsSmbHandle) -> Self {
     Self{kind: handle.kind.clone(), name: handle.name.clone(), handle}
   }

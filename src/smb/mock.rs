@@ -3,7 +3,7 @@ use std::io::Error;
 use std::sync::{Arc, RwLock};
 use bytes::BufMut;
 
-use super::{Result, VFSDirEntry, VFSDirectory, VFSEntryType, VFSFile, VFSFileNotificationBoxed, VFSStat, Time, VFS};
+use super::{Result, VFSDirEntry, VFSDirectory, VFSEntryType, VFSFile, VFSStat, Time, VFS};
 use crate::get_parent_path_and_name;
 
 
@@ -134,9 +134,9 @@ impl VFS for SMBConnection {
         let contents = mocks.files.entry(path.to_string()).or_default();
         contents.resize(len as usize, 0);
         Ok(())
-      }
-      
-    fn watch(&self, _path: &str, _mode: super::VFSWatchMode, _listen_events: super::VFSFileNotificationOperationFlags) -> Result<VFSFileNotificationBoxed> {
+    }
+
+    fn watch(&self, _path: &str, _mode: super::VFSWatchMode, _listen_events: super::VFSFileNotificationOperationFlags, _cb: Box<dyn super::VFSNotifyChangeCallback>) {
         todo!("watch unimplemented for mock")
     }
 }

@@ -1238,29 +1238,38 @@ test.serial('should handle watch', async (t) => {
   const sleep = async (ms: number) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
   const rootHandle = await getRootHandle();
   const smbHandle = rootHandle as SmbDirectoryHandle;
-  let caught: {path: string, action: string} = {path: "", action: ""};
+  const caught: {path: string, action: string}[] = [];
   smbHandle.watch(async (watchEvent) => {
-    if (!watchEvent || watchEvent.path !== "watch_event_file" || watchEvent.action !== "create") {
-      console.log("watch caught something unexpected:", watchEvent, new Date());
-    }
-    caught = watchEvent;
+    caught.push(watchEvent);
   })
 
   await sleep(500)
     .then(async () => {
-      // console.log("post-sleep");
       const rootHandleAlt = await getRootHandle();
-      // console.log("obtained root handle");
       const fileHandle = await rootHandleAlt.getFileHandle("watch_event_file", {create: true});
-      // console.log("obtained file handle");
       const writable = await fileHandle.createWritable();
-      // console.log("obtained writable");
       const writer = await writable.getWriter();
-      // console.log("obtained writer");
+      await sleep(100);
       await writer.write("eventful");
-      // console.log("finished writing");
+      await rootHandleAlt.removeEntry("watch_event_file");
     });
-  // console.log("done watching", new Date());
-  t.deepEqual(caught, {path: "watch_event_file", action: "create"});
+  await sleep(500)
+    .then(async () => {
+      const rootHandleAlt = await getRootHandle();
+      const fileHandle = await rootHandleAlt.getFileHandle("watch_event_file2", {create: true});
+      const writable = await fileHandle.createWritable();
+      const writer = await writable.getWriter();
+      await writer.write("eventful");
+      await rootHandleAlt.removeEntry("watch_event_file2");
+    });
+  await sleep(100);
+  const expected: {path: string, action: string}[] = [
+    {path: "watch_event_file", action: "create"},
+    // {path: "watch_event_file", action: "write"}, FIXME: why no write event?
+    {path: "watch_event_file", action: "remove"},
+    {path: "watch_event_file2", action: "create"},
+    // {path: "watch_event_file2", action: "write"}, FIXME: why no write event?
+    {path: "watch_event_file2", action: "remove"},
+  ]
+  t.deepEqual(caught, expected);
 })
-

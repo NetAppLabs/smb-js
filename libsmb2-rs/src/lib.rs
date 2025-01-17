@@ -7,7 +7,7 @@ use libsmb2_sys::*;
 use nix::fcntl::OFlag;
 use nix::sys::stat::Mode;
 
-use std::ffi::{CStr, CString};
+use std::ffi::{c_void, CStr, CString};
 use std::io::{Error, ErrorKind, Result};
 use std::mem::zeroed;
 use std::os::raw::c_char;
@@ -206,11 +206,73 @@ impl Drop for SmbFile {
     }
 }
 
-#[derive(Clone)]
-pub struct SmbNotifyChangeInformation {
+extern "C" fn smb_notify_change_callback(ctx: *mut smb2_context, status: i32, info_handle: *mut c_void, cb_data: *mut c_void) {
+    if status as u32 == SMB2_STATUS_CANCELLED {
+        println!("smb_notify_change_callback - cancelled");
+        return;
+    }
+
+    let cb_ptr = cb_data.cast::<NotifyChangeCallback>();
+    let cb = unsafe { Box::from_raw(cb_ptr) };
+    let change_handle = info_handle.cast::<smb2_file_notify_change_information>();
+    let mut next = change_handle;
+    while !next.is_null() {
+        if let Ok((path, action)) = get_path_and_action_from_change_info(next) {
+            cb.call(path, action);
+            next = unsafe { (*next).next };
+        }
+    }
+    unsafe { free_smb2_file_notify_change_information(ctx, change_handle); }
+    std::mem::forget(cb); // XXX: prevent execution of NotifyChangeCallback::drop
+}
+
+pub trait SmbNotifyChangeCallback {
+    fn call(&self, path: String, action: String);
+}
+
+struct NotifyChangeCallback {
+    inner: Box<dyn SmbNotifyChangeCallback>,
     smb: Arc<SmbPtr>,
-    info_handle: *mut smb2_file_notify_change_information,
-    next: *mut smb2_file_notify_change_information,
+    fh: *mut smb2fh,
+}
+
+impl Drop for NotifyChangeCallback {
+    fn drop(&mut self) {
+        if !self.fh.is_null() {
+            unsafe {
+                let ctx_ref = using_mutex!(self.smb);
+                let ctx = *ctx_ref;
+                smb2_close(ctx, self.fh);
+            }
+        }
+    }
+}
+
+impl SmbNotifyChangeCallback for NotifyChangeCallback {
+    fn call(&self, path: String, action: String) {
+        self.inner.call(path, action);
+    }
+}
+
+fn get_path_and_action_from_change_info(change_info: *mut smb2_file_notify_change_information) -> Result<(String, String)> {
+    let file_path = unsafe { CStr::from_ptr((*change_info).name) };
+    let mut path = file_path.to_string_lossy().into_owned();
+    path = path.replace("\\", "/");
+
+    let int_action = unsafe { (*change_info).action };
+    let enum_action = SmbChangeNotifyAction::from(int_action)?;
+    let action = match enum_action {
+        SmbChangeNotifyAction::Added => "create",
+        SmbChangeNotifyAction::Removed => "remove",
+        SmbChangeNotifyAction::Modified => "write",
+        SmbChangeNotifyAction::RenamedOldName => "rename",
+        SmbChangeNotifyAction::RenamedNewName => "rename",
+        SmbChangeNotifyAction::AddedStream => "write",
+        SmbChangeNotifyAction::RemovedStream => "write",
+        SmbChangeNotifyAction::ModifiedStream => "write",
+    }.to_string();
+
+    Ok((path, action))
 }
 
 #[derive(Clone)]
@@ -218,53 +280,6 @@ pub struct NotifyChangeInformation {
     pub path: String,
     pub action: SmbChangeNotifyAction,
 }
-
-impl Drop for SmbNotifyChangeInformation {
-    fn drop(&mut self) {
-        if !self.info_handle.is_null() {
-            unsafe {
-                let ctx_ref = using_mutex!(self.smb);
-                let ctx = *ctx_ref;
-                free_smb2_file_notify_change_information(ctx, self.info_handle);
-            }
-        }
-    }
-}
-
-/*
-impl SmbNotifyChangeInformation {
-
-    pub fn get_path(&self) -> Result<String> {
-        unsafe {
-            let c_path_ptr = (*self.info_handle).name;
-            let c_path_mptr = c_path_ptr as *mut i8;
-            let c_path = CString::from_raw(c_path_mptr);
-            let res_path = c_path.to_str();
-            match res_path {
-                Ok(path) => {
-                    // rewrite \ to / in path
-                    let path = path.replace("\\", "/");
-                    return Ok(path.to_owned())
-                },
-                Err(_) => {
-                    return Err(Error::new(
-                        ErrorKind::InvalidData,
-                        format!("Error parsing path string:"),
-                    ))
-                }
-            }
-        }
-    }
-
-    pub fn get_action(&self) -> Result<SmbChangeNotifyAction> {
-        unsafe {
-            let act: u32 = (*self.info_handle).action;
-            return SmbChangeNotifyAction::from(act);
-        }
-    }
-
-}
-*/
 
 pub struct SmbUrl {
     url: *mut smb2_url,
@@ -374,18 +389,41 @@ impl Smb {
             })
         }
     }
-    
-    pub fn notify_change(&self, path: &Path, notify_flags: SmbChangeNotifyFlags, filter: SmbChangeNotifyFileFilter) -> Result<SmbNotifyChangeInformation> {
-        let path = self.get_resolved_path_cstr(path)?;
+
+    pub fn notify_change(&self, path: &Path, notify_flags: SmbChangeNotifyFlags, filter: SmbChangeNotifyFileFilter, cb: Box<dyn SmbNotifyChangeCallback>) {
+        let path = self.get_resolved_path_cstr(path).unwrap();
         let ctx_ref = using_mutex!(self.context);
         let ctx = *ctx_ref;
         unsafe {
-            let change_handle = smb2_notify_change(ctx, path.as_ptr(), notify_flags.bits(), filter.bits());
-            Ok(SmbNotifyChangeInformation {
-                smb: Arc::clone(&self.context),
-                info_handle: change_handle,
-                next: change_handle,
-            })
+            let fh = smb2_open(ctx, path.as_ptr(), libc::O_DIRECTORY);
+            if fh.is_null() {
+                println!("Smb notify_change_async - smb2_open returned null - Error::last_os_error() = {:?}", Error::last_os_error());
+                return;
+            }
+            let cb_data = Box::new(NotifyChangeCallback{inner: cb, smb: Arc::clone(&self.context), fh});
+            let cb_data_ptr = Box::into_raw(cb_data);
+            smb2_notify_change_filehandle_async(ctx, fh, notify_flags.bits(), filter.bits(), 1, Some(smb_notify_change_callback), cb_data_ptr.cast::<c_void>());
+
+            let pfd = Box::new(libc::pollfd{
+                fd: smb2_get_fd(ctx),
+                events: smb2_which_events(ctx) as libc::c_short,
+                revents: 0,
+            });
+            let pfd_ptr = Box::into_raw(pfd);
+            loop {
+                let ret = libc::poll(pfd_ptr, 1, 1000);
+                if ret < 0 {
+                    println!("Smb notify_change_async - called libc::poll - ret = {:?}", ret);
+                    break;
+                }
+                if (*pfd_ptr).revents != 0 {
+                    let ret = smb2_service(ctx, (*pfd_ptr).revents.into());
+                    if ret < 0 {
+                        println!("Smb notify_change_async - called smb2_service - ret = {:?}", ret);
+                        break;
+                    }
+                }
+            }
         }
     }
 
@@ -1015,45 +1053,6 @@ impl Iterator for SmbDirectory {
                 mtime_nsec: (stat).smb2_mtime_nsec,
                 ctime_nsec: (stat).smb2_ctime_nsec,
             }))
-        }
-    }
-}
-
-
-impl Iterator for SmbNotifyChangeInformation {
-    type Item = Result<NotifyChangeInformation>;
-    fn next(&mut self) -> Option<Self::Item> {
-        unsafe {
-
-            let info_handle = self.next;
-            if info_handle.is_null() {
-                None
-            } else {
-
-                let file_path = CStr::from_ptr((*info_handle).name);
-                let mut path = file_path.to_string_lossy().into_owned();
-                path = path.replace("\\", "/");
-
-                let int_action = (*info_handle).action;
-                let enum_action = SmbChangeNotifyAction::from(int_action);
-                match enum_action {
-                    Ok(action) => {
-                        self.next = (*info_handle).next;
-                        // if !self.next.is_null() {
-                        //     println!("Iterator for SmbNotifyChangeInformation - self.next.is_null() = false");
-                        // }
-                        // println!("Iterator for SmbNotifyChangeInformation - path={:?} action={:?}", &path, &int_action);
-                        Some(Ok(NotifyChangeInformation {
-                            path,
-                            action: action.to_owned(),
-                        }))
-                    },
-                    Err(_) => {
-                        None
-                    },
-                }
-
-            }
         }
     }
 }

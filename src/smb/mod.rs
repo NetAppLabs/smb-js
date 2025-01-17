@@ -5,6 +5,7 @@ use std::fmt::Debug;
 mod libsmb;
 mod mock;
 use enumflags2::{bitflags, BitFlags};
+use libsmb2_rs::SmbNotifyChangeCallback;
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Time {
@@ -45,6 +46,20 @@ pub enum VFSWatchMode {
     Recursive
 }
 
+pub trait VFSNotifyChangeCallback {
+    fn call(&self, path: String, action: String);
+}
+
+pub struct NotifyChangeCallback {
+    inner: Box<dyn VFSNotifyChangeCallback>,
+}
+
+impl SmbNotifyChangeCallback for NotifyChangeCallback {
+    fn call(&self, path: String, action: String) {
+        self.inner.call(path, action);
+    }
+}
+
 pub trait VFS: Debug + Send + Sync {
     //fn access(&self, path: &str, mode: u32) -> Result<()>;
     fn stat(&self, path: &str) -> Result<VFSStat>;
@@ -56,19 +71,10 @@ pub trait VFS: Debug + Send + Sync {
     fn unlink(&self, path: &str) -> Result<()>;
     fn open(&mut self, path: &str, flags: u32) -> Result<Box<dyn VFSFile>>;
     fn truncate(&self, path: &str, len: u64) -> Result<()>;
-    
-    fn watch(&self, path: &str, mode: VFSWatchMode, listen_events: VFSFileNotificationOperationFlags) -> Result<VFSFileNotificationBoxed>;
+
+    fn watch(&self, path: &str, mode: VFSWatchMode, listen_events: VFSFileNotificationOperationFlags, cb: Box<dyn VFSNotifyChangeCallback>);
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub struct VFSFileNotificationInformation {
-    pub path: String,
-    pub operation: VFSFileNotificationOperation
-}
-
-pub type VFSFileNotificationBoxed = Box<dyn VFSFileNotification>;
-pub trait VFSFileNotification: Debug + Iterator<Item = Result<VFSFileNotificationInformation>> {}
 pub trait VFSDirectory: Debug + Iterator<Item = Result<VFSDirEntry>> {}
 
 pub trait VFSFile: Debug {
