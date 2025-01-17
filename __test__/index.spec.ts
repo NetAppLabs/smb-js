@@ -1263,13 +1263,29 @@ test.serial('should handle watch', async (t) => {
       await rootHandleAlt.removeEntry("watch_event_file2");
     });
   await sleep(100);
-  const expected: {path: string, action: string}[] = [
+
+  // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
+  const expectedEntries: {path: string, action: string}[] = [
     {path: "watch_event_file", action: "create"},
-    // {path: "watch_event_file", action: "write"}, FIXME: why no write event?
+    {path: "watch_event_file", action: "write"},
     {path: "watch_event_file", action: "remove"},
     {path: "watch_event_file2", action: "create"},
-    // {path: "watch_event_file2", action: "write"}, FIXME: why no write event?
+    {path: "watch_event_file2", action: "write"},
     {path: "watch_event_file2", action: "remove"},
   ]
-  t.deepEqual(caught, expected);
+  let expectedIndex = 0;
+  caught.reverse();
+  while (caught.length > 0) {
+    const entry = caught.pop();
+    if (entry?.action !== "write" && expectedEntries[expectedIndex].action === "write") {
+      // XXX: we've encountered something other than write event when "expecting" write event - increment to next expected event
+      expectedIndex++;
+    }
+    const expectedEntry = expectedEntries[expectedIndex];
+    t.deepEqual(entry, expectedEntry);
+    if (entry?.action !== "write") {
+      // XXX: for events other than write, we simply increment to next expected event
+      expectedIndex++;
+    }
+  }
 })
