@@ -153,6 +153,7 @@ impl VFS for SMBConnection {
         let my_smb = using_rwlock!(self.smb);
         let notify_flags = SmbChangeNotifyFlags::my_from(mode);
         let notify_filter = SmbChangeNotifyFileFilter::my_from(listen_events);
+        println!("SMBConnection watch");
         my_smb.notify_change(Path::new(smb_path), notify_flags, notify_filter, Box::new(super::NotifyChangeCallback{inner: cb}), cancelled_rx);
     }
 }

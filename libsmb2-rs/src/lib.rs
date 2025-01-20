@@ -208,6 +208,7 @@ impl Drop for SmbFile {
 }
 
 extern "C" fn smb_notify_change_callback(ctx: *mut smb2_context, status: i32, info_handle: *mut c_void, cb_data: *mut c_void) {
+    println!("smb_notify_change_callback - status = {:?}", status);
     if status as u32 == SMB2_STATUS_CANCELLED {
         println!("smb_notify_change_callback - cancelled");
         return;
@@ -217,14 +218,20 @@ extern "C" fn smb_notify_change_callback(ctx: *mut smb2_context, status: i32, in
     let cb = unsafe { Box::from_raw(cb_ptr) };
     let change_handle = info_handle.cast::<smb2_file_notify_change_information>();
     let mut next = change_handle;
+    println!("smb_notify_change_callback - next.is_null = {:?}", next.is_null());
     while !next.is_null() {
         if let Ok((path, action)) = get_path_and_action_from_change_info(next) {
+            println!("smb_notify_change_callback - calling cb.call - path = {:?}, action = {:?}", &path, &action);
             cb.call(path, action);
             next = unsafe { (*next).next };
+            println!("smb_notify_change_callback - inner next.is_null = {:?}", next.is_null());
         }
     }
+    println!("smb_notify_change_callback - calling free_smb2_file_notify_change_information");
     unsafe { free_smb2_file_notify_change_information(ctx, change_handle); }
+    println!("smb_notify_change_callback - calling std::mem::forget");
     std::mem::forget(cb); // XXX: prevent execution of NotifyChangeCallback::drop
+    println!("smb_notify_change_callback done");
 }
 
 pub trait SmbNotifyChangeCallback {
@@ -392,10 +399,12 @@ impl Smb {
     }
 
     pub fn notify_change(&self, path: &Path, notify_flags: SmbChangeNotifyFlags, filter: SmbChangeNotifyFileFilter, cb: Box<dyn SmbNotifyChangeCallback>, cancelled_rx: &Receiver<bool>) {
+        println!("Smb notify_change");
         let path = self.get_resolved_path_cstr(path).unwrap();
         let ctx_ref = using_mutex!(self.context);
         let ctx = *ctx_ref;
         unsafe {
+            println!("Smb notify_change - calling smb2_open - path = {:?}", &path);
             let fh = smb2_open(ctx, path.as_ptr(), libc::O_DIRECTORY);
             if fh.is_null() {
                 println!("Smb notify_change_async - smb2_open returned null - Error::last_os_error() = {:?}", Error::last_os_error());
@@ -403,11 +412,14 @@ impl Smb {
             }
             let cb_data = Box::new(NotifyChangeCallback{inner: cb, smb: Arc::clone(&self.context), fh});
             let cb_data_ptr = Box::into_raw(cb_data);
+            println!("Smb notify_change - calling smb2_notify_change_filehandle_async");
             smb2_notify_change_filehandle_async(ctx, fh, notify_flags.bits(), filter.bits(), 1, Some(smb_notify_change_callback), cb_data_ptr.cast::<c_void>());
 
             let pfd = Box::new(libc::pollfd{fd: 0, events: 0, revents: 0});
             let pfd_ptr = Box::into_raw(pfd);
+            println!("Smb notify_change - calling cancelled_rx.try_recv");
             while cancelled_rx.try_recv().is_err() { // FIXME: more stringent check? (taking into account dropped sender?)
+                println!("Smb notify_change - calling smb2_get_fd");
                 let fd = smb2_get_fd(ctx);
                 if fd < 0 {
                     println!("Smb notify_change_async - bad fd returned from smb2_get_fd");
@@ -415,20 +427,25 @@ impl Smb {
                 }
 
                 (*pfd_ptr).fd = fd;
+                println!("Smb notify_change - calling smb2_which_events");
                 (*pfd_ptr).events = smb2_which_events(ctx) as libc::c_short;
                 (*pfd_ptr).revents = 0;
+                println!("Smb notify_change - calling libc::poll - fd = {:?} events = {:?}", (*pfd_ptr).fd, (*pfd_ptr).events);
                 let ret = libc::poll(pfd_ptr, 1, 1000);
                 if ret < 0 {
                     println!("Smb notify_change_async - called libc::poll - ret = {:?}", ret);
                     break;
                 }
+                println!("Smb notify_change - called libc::poll - ret = {:?} revents = {:?}", ret, (*pfd_ptr).revents);
                 if (*pfd_ptr).revents != 0 {
+                    println!("Smb notify_change - calling smb2_service");
                     let ret = smb2_service(ctx, (*pfd_ptr).revents.into());
                     if ret < 0 {
                         println!("Smb notify_change_async - called smb2_service - ret = {:?}", ret);
                         break;
                     }
                 }
+                println!("Smb notify_change - calling cancelled_rx.try_recv");
             }
             let _pfd_revived = Box::from_raw(pfd_ptr); // XXX: so as to free up the memory when this falls out of scope
         }
