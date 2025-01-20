@@ -1156,7 +1156,7 @@ ava_1.default.serial('should handle watch', async (t) => {
         await writer.write("eventful");
         await rootHandleAlt.removeEntry("watch_event_file2");
     });
-    await sleep(100);
+    await sleep(200);
     // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
     const expectedEntries = [
         { path: "watch_event_file", action: "create" },
@@ -1168,7 +1168,6 @@ ava_1.default.serial('should handle watch', async (t) => {
     ];
     let expectedIndex = 0;
     caught.reverse();
-    t.assert(caught.length >= 4); // XXX: should have at least create and remove for both files
     while (caught.length > 0) {
         const entry = caught.pop();
         if (entry?.action !== "write" && expectedEntries[expectedIndex].action === "write") {
@@ -1182,6 +1181,7 @@ ava_1.default.serial('should handle watch', async (t) => {
             expectedIndex++;
         }
     }
+    t.is(expectedIndex, expectedEntries.length);
     watcher.cancel();
 });
 ava_1.default.serial('should handle watch on subdirectory', async (t) => {
@@ -1220,7 +1220,7 @@ ava_1.default.serial('should handle watch on subdirectory', async (t) => {
     const writer = await writable.getWriter();
     await writer.write("eventful");
     await rootHandle.removeEntry("watch_event_file3");
-    await sleep(100);
+    await sleep(200);
     // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
     const expectedEntries = [
         { path: "watch_event_file", action: "create" },
@@ -1232,7 +1232,6 @@ ava_1.default.serial('should handle watch on subdirectory', async (t) => {
     ];
     let expectedIndex = 0;
     caught.reverse();
-    t.assert(caught.length >= 4); // XXX: should have at least create and remove for both files
     while (caught.length > 0) {
         const entry = caught.pop();
         if (entry?.action !== "write" && expectedEntries[expectedIndex].action === "write") {
@@ -1246,6 +1245,7 @@ ava_1.default.serial('should handle watch on subdirectory', async (t) => {
             expectedIndex++;
         }
     }
+    t.is(expectedIndex, expectedEntries.length);
     sleep(500).then(() => watcher.cancel());
     await watcher.wait();
 });
