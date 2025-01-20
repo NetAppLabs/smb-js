@@ -1264,6 +1264,9 @@ test.serial('should handle watch', async (t) => {
     });
   await sleep(200);
 
+  sleep(5000).then(() => watcher.cancel());
+  await watcher.wait();
+
   // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
   const expectedEntries: {path: string, action: string}[] = [
     {path: "watch_event_file", action: "create"},
@@ -1289,7 +1292,6 @@ test.serial('should handle watch', async (t) => {
     }
   }
   t.is(expectedIndex, expectedEntries.length);
-  watcher.cancel();
 })
 
 test.serial('should handle watch on subdirectory', async (t) => {
@@ -1332,7 +1334,8 @@ test.serial('should handle watch on subdirectory', async (t) => {
   await writer.write("eventful");
   await rootHandle.removeEntry("watch_event_file3");
 
-  await sleep(200);
+  sleep(5000).then(() => watcher.cancel());
+  await watcher.wait();
 
   // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
   const expectedEntries: {path: string, action: string}[] = [
@@ -1359,6 +1362,4 @@ test.serial('should handle watch on subdirectory', async (t) => {
     }
   }
   t.is(expectedIndex, expectedEntries.length);
-  sleep(500).then(() => watcher.cancel());
-  await watcher.wait();
 })

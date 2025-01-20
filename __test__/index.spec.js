@@ -1157,6 +1157,8 @@ ava_1.default.serial('should handle watch', async (t) => {
         await rootHandleAlt.removeEntry("watch_event_file2");
     });
     await sleep(200);
+    sleep(5000).then(() => watcher.cancel());
+    await watcher.wait();
     // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
     const expectedEntries = [
         { path: "watch_event_file", action: "create" },
@@ -1182,7 +1184,6 @@ ava_1.default.serial('should handle watch', async (t) => {
         }
     }
     t.is(expectedIndex, expectedEntries.length);
-    watcher.cancel();
 });
 ava_1.default.serial('should handle watch on subdirectory', async (t) => {
     if (node_process_1.default.env.TEST_USING_MOCKS) {
@@ -1220,7 +1221,8 @@ ava_1.default.serial('should handle watch on subdirectory', async (t) => {
     const writer = await writable.getWriter();
     await writer.write("eventful");
     await rootHandle.removeEntry("watch_event_file3");
-    await sleep(200);
+    sleep(5000).then(() => watcher.cancel());
+    await watcher.wait();
     // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
     const expectedEntries = [
         { path: "watch_event_file", action: "create" },
@@ -1246,6 +1248,4 @@ ava_1.default.serial('should handle watch on subdirectory', async (t) => {
         }
     }
     t.is(expectedIndex, expectedEntries.length);
-    sleep(500).then(() => watcher.cancel());
-    await watcher.wait();
 });
