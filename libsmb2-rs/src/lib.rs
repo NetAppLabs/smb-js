@@ -405,6 +405,8 @@ impl Smb {
             let cb_data_ptr = Box::into_raw(cb_data);
             smb2_notify_change_filehandle_async(ctx, fh, notify_flags.bits(), filter.bits(), 1, Some(smb_notify_change_callback), cb_data_ptr.cast::<c_void>());
 
+            let pfd = Box::new(libc::pollfd{fd: 0, events: 0, revents: 0});
+            let pfd_ptr = Box::into_raw(pfd);
             while cancelled_rx.try_recv().is_err() { // FIXME: more stringent check? (taking into account dropped sender?)
                 let fd = smb2_get_fd(ctx);
                 if fd < 0 {
@@ -412,12 +414,9 @@ impl Smb {
                     break;
                 }
 
-                let pfd = Box::new(libc::pollfd{
-                    fd,
-                    events: smb2_which_events(ctx) as libc::c_short,
-                    revents: 0,
-                });
-                let pfd_ptr = Box::into_raw(pfd);
+                (*pfd_ptr).fd = fd;
+                (*pfd_ptr).events = smb2_which_events(ctx) as libc::c_short;
+                (*pfd_ptr).revents = 0;
                 let ret = libc::poll(pfd_ptr, 1, 1000);
                 if ret < 0 {
                     println!("Smb notify_change_async - called libc::poll - ret = {:?}", ret);
@@ -431,6 +430,7 @@ impl Smb {
                     }
                 }
             }
+            let _pfd_revived = Box::from_raw(pfd_ptr); // XXX: so as to free up the memory when this falls out of scope
         }
     }
 

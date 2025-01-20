@@ -5,7 +5,7 @@ use napi::{bindgen_prelude::*, threadsafe_function::{ErrorStrategy, ThreadSafeCa
 use napi_derive::napi;
 use nix::sys::stat::Mode;
 use send_wrapper::SendWrapper;
-use std::{path::Path, sync::{mpsc::{channel, sync_channel, Receiver, SyncSender}, Arc, RwLock, RwLockWriteGuard}, thread};
+use std::{path::Path, sync::{mpsc::{channel, Receiver, Sender}, Arc, RwLock, RwLockWriteGuard}, thread};
 
 mod smb;
 use smb::{VFSEntryType, VFSFileNotificationOperation, VFSNotifyChangeCallback, VFSWatchMode, VFS};
@@ -614,7 +614,7 @@ impl JsSmbDirectoryHandle {
       })?;
 
     let (done_tx, done_rx) = channel();
-    let (cancelled_tx, cancelled_rx) = sync_channel(2);
+    let (cancelled_tx, cancelled_rx) = channel();
     let ret = Cancellable{done_rx: Arc::new(RwLock::new(Box::new(done_rx))), cancelled_tx: Arc::new(RwLock::new(Box::new(cancelled_tx)))};
     let handle = self.handle.clone();
     thread::spawn(move || {
@@ -637,7 +637,7 @@ impl JsSmbDirectoryHandle {
 #[napi]
 pub struct Cancellable {
   done_rx: Arc<RwLock<Box<Receiver<bool>>>>,
-  cancelled_tx: Arc<RwLock<Box<SyncSender<bool>>>>,
+  cancelled_tx: Arc<RwLock<Box<Sender<bool>>>>,
 }
 
 unsafe impl Send for Cancellable{}
