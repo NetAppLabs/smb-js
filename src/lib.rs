@@ -609,7 +609,6 @@ impl JsSmbDirectoryHandle {
     let tsfn: ThreadsafeFunction<Result<(String, String)>, ErrorStrategy::Fatal> = callback
       .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<(String, String), Error>>| {
         ctx.value.map(|(path, action)| {
-          println!("watch callback - path = {:?} action = {:?}", &path, &action);
           vec![JsSmbNotifyChange{path, action}]
         })
       })?;
@@ -620,21 +619,17 @@ impl JsSmbDirectoryHandle {
     let ret = Cancellable{done_rx: Arc::new(RwLock::new(Box::new(done_rx))), cancelled_tx: Arc::new(RwLock::new(Box::new(cancelled_tx)))};
     let handle = self.handle.clone();
     thread::spawn(move || {
-      println!("watch thread");
       let watch_mode = VFSWatchMode::Recursive;
       let listen_flags = VFSFileNotificationOperation::all();
       while cancelled_rx.try_recv().is_err() { // FIXME: more stringent check? (taking into account dropped sender?)
-        println!("watch thread - clone_with_new_connection");
         let handle = handle.clone_with_new_connection().unwrap();
         let smb = &handle.smb;
         let path = &handle.path;
         let my_smb = using_rwlock!(smb);
         let cb = Box::new(JsSmbDirectoryHandleWatchCallback{tsfn: tsfn.clone()});
-        println!("watch thread - watch");
         my_smb.watch(path, watch_mode, listen_flags, cb, &ready_tx, &cancelled_rx);
       }
       let _ = done_tx.send(true);
-      println!("watch thread done");
     });
     let _ = ready_rx.recv();
     Ok(ret)
@@ -654,23 +649,16 @@ unsafe impl Sync for Cancellable{}
 impl Cancellable {
   #[napi]
   pub async fn wait(&self) {
-    println!("Cancellable wait");
     let done_rx = self.done_rx.read().unwrap();
-    println!("Cancellable wait - calling recv");
     let _ = done_rx.recv();
-    println!("Cancellable wait - called recv");
   }
 
   #[napi]
   pub fn cancel(&self) {
-    println!("Cancellable cancel");
     // XXX: send on cancelled channel twice - once for libc::poll loop and once for loop in thread above
     let cancelled_tx = self.cancelled_tx.write().unwrap();
-    println!("Cancellable cancel - calling send");
     let _ = cancelled_tx.send(true);
-    println!("Cancellable cancel - calling send again");
     let _ = cancelled_tx.send(true);
-    println!("Cancellable cancel - called send twice");
   }
 }
 
@@ -680,7 +668,6 @@ struct JsSmbDirectoryHandleWatchCallback {
 
 impl VFSNotifyChangeCallback for JsSmbDirectoryHandleWatchCallback {
   fn call(&self, path: String, action: String) {
-    println!("JsSmbDirectoryHandleWatchCallback call - path = {:?} action = {:?}", &path, &action);
     self.tsfn.call(Ok((path, action)), ThreadsafeFunctionCallMode::NonBlocking);
   }
 }
