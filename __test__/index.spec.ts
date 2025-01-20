@@ -1275,6 +1275,7 @@ test.serial('should handle watch', async (t) => {
   ]
   let expectedIndex = 0;
   caught.reverse();
+  t.assert(caught.length >= 4);
   while (caught.length > 0) {
     const entry = caught.pop();
     if (entry?.action !== "write" && expectedEntries[expectedIndex].action === "write") {
@@ -1343,6 +1344,7 @@ test.serial('should handle watch on subdirectory', async (t) => {
   ]
   let expectedIndex = 0;
   caught.reverse();
+  t.assert(caught.length >= 4);
   while (caught.length > 0) {
     const entry = caught.pop();
     if (entry?.action !== "write" && expectedEntries[expectedIndex].action === "write") {

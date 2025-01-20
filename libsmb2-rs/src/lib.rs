@@ -406,12 +406,13 @@ impl Smb {
 
             let pfd = Box::new(libc::pollfd{
                 fd: smb2_get_fd(ctx),
-                events: smb2_which_events(ctx) as libc::c_short,
+                events: 0,
                 revents: 0,
             });
             let pfd_ptr = Box::into_raw(pfd);
             loop {
-                let ret = libc::poll(pfd_ptr, 1, 1000);
+                (*pfd_ptr).events = smb2_which_events(ctx) as libc::c_short;
+                let ret = libc::poll(pfd_ptr, 1, -1);
                 if ret < 0 {
                     println!("Smb notify_change_async - called libc::poll - ret = {:?}", ret);
                     break;
