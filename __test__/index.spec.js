@@ -5,6 +5,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const ava_1 = __importDefault(require("ava"));
 const node_process_1 = __importDefault(require("node:process"));
+node_process_1.default.env.DYLD_INSERT_LIBRARIES = "/Library/Developer/CommandLineTools/usr/lib/clang/16/lib/darwin/libclang_rt.asan_osx_dynamic.dylib";
 const indax_js_1 = require("../indax.js");
 const smbURL = node_process_1.default.env.SMB_URL || 'smb://127.0.0.1/Users/Shared/smb/';
 //const smbPath = process.env.SMB_PATH;

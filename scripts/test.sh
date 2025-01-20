@@ -2,6 +2,13 @@
 
 set -e
 
+export DYLD_INSERT_LIBRARIES=/Library/Developer/CommandLineTools/usr/lib/clang/16/lib/darwin/libclang_rt.asan_osx_dynamic.dylib
+export ASAN_OPTIONS=verify_asan_link_order=0
+export NODE_DEBUG="*"
+export NODE_DEBUG_NATIVE="*"
+#export LD_PRELOAD="/usr/lib/aarch64-linux-gnu/libasan.so.8.0.0"
+
+
 ./scripts/deps-test.sh
 
 if command -v brew 2>&1 >/dev/null ; then

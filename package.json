@@ -98,7 +98,9 @@
       "ts"
     ],
     "environmentVariables": {
-      "TS_NODE_PROJECT": "./tsconfig.json"
+      "TS_NODE_PROJECT": "./tsconfig.json",
+      "DYLD_INSERT_LIBRARIES": "/Library/Developer/CommandLineTools/usr/lib/clang/16/lib/darwin/libclang_rt.asan_osx_dynamic.dylib",
+      "LD_PRELOAD": "/usr/lib/aarch64-linux-gnu/libasan.so.8.0.0"
     }
   },
   "prettier": {

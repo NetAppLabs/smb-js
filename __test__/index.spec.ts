@@ -1,6 +1,7 @@
 import test from 'ava'
-
 import process from 'node:process';
+process.env.DYLD_INSERT_LIBRARIES="/Library/Developer/CommandLineTools/usr/lib/clang/16/lib/darwin/libclang_rt.asan_osx_dynamic.dylib";
+
 import { SmbDirectoryHandle, SmbFileHandle } from '../indax.js'
 
 const smbURL = process.env.SMB_URL || 'smb://127.0.0.1/Users/Shared/smb/';

@@ -124,7 +124,7 @@ if [ "${OS}" == "Darwin" ]; then
             --host=${TARGET_TRIPLE_FOR_CC} \
             --prefix="${INSTALL_DIR}" \
             --exec-prefix="${INSTALL_DIR}" \
-            CFLAGS="-fPIC" \
+            CFLAGS="-fsanitize=address -fPIC" \
             LDFLAGS="-framework GSS" \
             YACC="${YACC}"
         make clean
@@ -218,9 +218,9 @@ elif [ "${OS}" == "Linux" ]; then
             --host=${TARGET_TRIPLE_FOR_CC} \
             --prefix="${INSTALL_DIR}" \
             --exec-prefix="${INSTALL_DIR}" \
-            CFLAGS="-fPIC -Wno-cast-align -I${KRB5_INSTALL_DIR}/include" \
-            LDFLAGS="-L${KRB5_INSTALL_DIR}/lib" \
-            LIBS="-ldl -lgssapi_krb5 -lkrb5 -lcom_err -lgssrpc -lk5crypto -lkdb5 -lkrad -lkrb5_db2 -lkrb5_k5tls -lkrb5_otp -lkrb5_spake -lkrb5support -lverto -lresolv"
+            CFLAGS="-fPIC -Wno-cast-align -I${KRB5_INSTALL_DIR}/include -fsanitize=address" \
+            LDFLAGS="-L${KRB5_INSTALL_DIR}/lib -fsanitize=address" \
+            LIBS="-lasan -lubsan -ldl -lgssapi_krb5 -lkrb5 -lcom_err -lgssrpc -lk5crypto -lkdb5 -lkrad -lkrb5_db2 -lkrb5_k5tls -lkrb5_otp -lkrb5_spake -lkrb5support -lverto -lresolv"
         make -j${PROCS} clean all
         make install
         popd
