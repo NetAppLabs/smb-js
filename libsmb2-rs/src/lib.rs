@@ -404,14 +404,19 @@ impl Smb {
             let cb_data_ptr = Box::into_raw(cb_data);
             smb2_notify_change_filehandle_async(ctx, fh, notify_flags.bits(), filter.bits(), 1, Some(smb_notify_change_callback), cb_data_ptr.cast::<c_void>());
 
-            let pfd = Box::new(libc::pollfd{
-                fd: smb2_get_fd(ctx),
-                events: 0,
-                revents: 0,
-            });
-            let pfd_ptr = Box::into_raw(pfd);
             loop {
-                (*pfd_ptr).events = smb2_which_events(ctx) as libc::c_short;
+                let fd = smb2_get_fd(ctx);
+                if fd < 0 {
+                    println!("Smb notify_change_async - bad fd returned from smb2_get_fd");
+                    break;
+                }
+
+                let pfd = Box::new(libc::pollfd{
+                    fd,
+                    events: smb2_which_events(ctx) as libc::c_short,
+                    revents: 0,
+                });
+                let pfd_ptr = Box::into_raw(pfd);
                 let ret = libc::poll(pfd_ptr, 1, 1000);
                 if ret < 0 {
                     println!("Smb notify_change_async - called libc::poll - ret = {:?}", ret);
