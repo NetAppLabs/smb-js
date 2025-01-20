@@ -1,5 +1,5 @@
 use core::fmt;
-use std::io::Result;
+use std::{io::Result, sync::mpsc::Receiver};
 use std::fmt::Debug;
 
 mod libsmb;
@@ -72,7 +72,7 @@ pub trait VFS: Debug + Send + Sync {
     fn open(&mut self, path: &str, flags: u32) -> Result<Box<dyn VFSFile>>;
     fn truncate(&self, path: &str, len: u64) -> Result<()>;
 
-    fn watch(&self, path: &str, mode: VFSWatchMode, listen_events: VFSFileNotificationOperationFlags, cb: Box<dyn VFSNotifyChangeCallback>);
+    fn watch(&self, path: &str, mode: VFSWatchMode, listen_events: VFSFileNotificationOperationFlags, cb: Box<dyn VFSNotifyChangeCallback>, cancelled_rx: &Receiver<bool>);
 }
 
 pub trait VFSDirectory: Debug + Iterator<Item = Result<VFSDirEntry>> {}

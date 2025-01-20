@@ -290,6 +290,7 @@ const {
   JsSmbDirectoryHandleValues,
   JsSmbHandle,
   JsSmbDirectoryHandle,
+  Cancellable,
   JsSmbFileHandle,
   JsSmbFile,
   JsSmbReadableStreamSource,
@@ -302,6 +303,7 @@ module.exports.JsSmbDirectoryHandleKeys = JsSmbDirectoryHandleKeys
 module.exports.JsSmbDirectoryHandleValues = JsSmbDirectoryHandleValues
 module.exports.JsSmbHandle = JsSmbHandle
 module.exports.JsSmbDirectoryHandle = JsSmbDirectoryHandle
+module.exports.Cancellable = Cancellable
 module.exports.JsSmbFileHandle = JsSmbFileHandle
 module.exports.JsSmbFile = JsSmbFile
 module.exports.JsSmbReadableStreamSource = JsSmbReadableStreamSource

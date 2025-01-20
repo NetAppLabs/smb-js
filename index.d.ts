@@ -54,7 +54,11 @@ export declare class JsSmbDirectoryHandle {
   getFileHandle(name: string, options?: JsSmbGetFileOptions): Promise<JsSmbFileHandle>
   removeEntry(name: string, options?: JsSmbRemoveOptions): Promise<void>
   resolve(possibleDescendant: JsSmbHandle): Promise<Array<string> | null>
-  watch(callback: (...args: any[]) => any): void
+  watch(callback: (...args: any[]) => any): Cancellable
+}
+export declare class Cancellable {
+  wait(): Promise<void>
+  cancel(): void
 }
 export declare class JsSmbFileHandle {
   readonly kind: 'file'

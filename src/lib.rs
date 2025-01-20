@@ -5,7 +5,7 @@ use napi::{bindgen_prelude::*, threadsafe_function::{ErrorStrategy, ThreadSafeCa
 use napi_derive::napi;
 use nix::sys::stat::Mode;
 use send_wrapper::SendWrapper;
-use std::{path::Path, sync::{Arc, RwLock, RwLockWriteGuard}, thread};
+use std::{path::Path, sync::{mpsc::{channel, sync_channel, Receiver, SyncSender}, Arc, RwLock, RwLockWriteGuard}, thread};
 
 mod smb;
 use smb::{VFSEntryType, VFSFileNotificationOperation, VFSNotifyChangeCallback, VFSWatchMode, VFS};
@@ -605,7 +605,7 @@ impl JsSmbDirectoryHandle {
   }
 
   #[napi]
-  pub fn watch(&self, callback: JsFunction) -> Result<()> {
+  pub fn watch(&self, callback: JsFunction) -> Result<Cancellable> {
     let tsfn: ThreadsafeFunction<Result<(String, String)>, ErrorStrategy::Fatal> = callback
       .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<(String, String), Error>>| {
         ctx.value.map(|(path, action)| {
@@ -613,25 +613,58 @@ impl JsSmbDirectoryHandle {
         })
       })?;
 
-    let handle = self.handle.clone_with_new_connection()?;
+    let (done_tx, done_rx) = channel();
+    let (cancelled_tx, cancelled_rx) = sync_channel(2);
+    let ret = Cancellable{done_rx: Arc::new(RwLock::new(Box::new(done_rx))), cancelled_tx: Arc::new(RwLock::new(Box::new(cancelled_tx)))};
+    let handle = self.handle.clone();
     thread::spawn(move || {
-      let smb = &handle.smb;
-      let path = &handle.path;
-      let my_smb = using_rwlock!(smb);
       let watch_mode = VFSWatchMode::Recursive;
       let listen_flags = VFSFileNotificationOperation::all();
-      let cb = Box::new(JsSmbDirectoryHandleWatch{tsfn});
-      my_smb.watch(path, watch_mode, listen_flags, cb);
+      while cancelled_rx.try_recv().is_err() { // FIXME: more stringent check? (taking into account dropped sender?)
+        let handle = handle.clone_with_new_connection().unwrap();
+        let smb = &handle.smb;
+        let path = &handle.path;
+        let my_smb = using_rwlock!(smb);
+        let cb = Box::new(JsSmbDirectoryHandleWatchCallback{tsfn: tsfn.clone()});
+        my_smb.watch(path, watch_mode, listen_flags, cb, &cancelled_rx);
+      }
+      let _ = done_tx.send(true);
     });
-    Ok(())
+    Ok(ret)
   }
 }
 
-struct JsSmbDirectoryHandleWatch {
+#[napi]
+pub struct Cancellable {
+  done_rx: Arc<RwLock<Box<Receiver<bool>>>>,
+  cancelled_tx: Arc<RwLock<Box<SyncSender<bool>>>>,
+}
+
+unsafe impl Send for Cancellable{}
+unsafe impl Sync for Cancellable{}
+
+#[napi]
+impl Cancellable {
+  #[napi]
+  pub async fn wait(&self) {
+    let done_rx = self.done_rx.read().unwrap();
+    let _ = done_rx.recv();
+  }
+
+  #[napi]
+  pub fn cancel(&self) {
+    // XXX: send on cancelled channel twice - once for libc::poll loop and once for loop in thread above
+    let cancelled_tx = self.cancelled_tx.write().unwrap();
+    let _ = cancelled_tx.send(true);
+    let _ = cancelled_tx.send(true);
+  }
+}
+
+struct JsSmbDirectoryHandleWatchCallback {
   tsfn: ThreadsafeFunction<Result<(String, String)>, ErrorStrategy::Fatal>,
 }
 
-impl VFSNotifyChangeCallback for JsSmbDirectoryHandleWatch {
+impl VFSNotifyChangeCallback for JsSmbDirectoryHandleWatchCallback {
   fn call(&self, path: String, action: String) {
     self.tsfn.call(Ok((path, action)), ThreadsafeFunctionCallMode::NonBlocking);
   }

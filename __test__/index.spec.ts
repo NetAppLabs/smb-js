@@ -1239,9 +1239,9 @@ test.serial('should handle watch', async (t) => {
   const rootHandle = await getRootHandle();
   const smbHandle = rootHandle as SmbDirectoryHandle;
   const caught: {path: string, action: string}[] = [];
-  smbHandle.watch(async (watchEvent) => {
+  const watcher = smbHandle.watch(async (watchEvent) => {
     caught.push(watchEvent);
-  })
+  });
 
   await sleep(500)
     .then(async () => {
@@ -1289,6 +1289,7 @@ test.serial('should handle watch', async (t) => {
       expectedIndex++;
     }
   }
+  watcher.cancel();
 })
 
 test.serial('should handle watch on subdirectory', async (t) => {
@@ -1303,9 +1304,9 @@ test.serial('should handle watch on subdirectory', async (t) => {
   const subSubHandle = await subHandle.getDirectoryHandle("sub", {create: true});
   const smbHandle = subHandle as SmbDirectoryHandle;
   const caught: {path: string, action: string}[] = [];
-  smbHandle.watch(async (watchEvent) => {
+  const watcher = smbHandle.watch(async (watchEvent) => {
     caught.push(watchEvent);
-  })
+  });
 
   await sleep(500)
     .then(async () => {
@@ -1358,4 +1359,6 @@ test.serial('should handle watch on subdirectory', async (t) => {
       expectedIndex++;
     }
   }
+  sleep(500).then(() => watcher.cancel());
+  await watcher.wait();
 })

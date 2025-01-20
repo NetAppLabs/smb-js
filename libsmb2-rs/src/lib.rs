@@ -13,6 +13,7 @@ use std::mem::zeroed;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
+use std::sync::mpsc::Receiver;
 use std::sync::{Arc, Mutex};
 use bitflags::bitflags;
 
@@ -390,7 +391,7 @@ impl Smb {
         }
     }
 
-    pub fn notify_change(&self, path: &Path, notify_flags: SmbChangeNotifyFlags, filter: SmbChangeNotifyFileFilter, cb: Box<dyn SmbNotifyChangeCallback>) {
+    pub fn notify_change(&self, path: &Path, notify_flags: SmbChangeNotifyFlags, filter: SmbChangeNotifyFileFilter, cb: Box<dyn SmbNotifyChangeCallback>, cancelled_rx: &Receiver<bool>) {
         let path = self.get_resolved_path_cstr(path).unwrap();
         let ctx_ref = using_mutex!(self.context);
         let ctx = *ctx_ref;
@@ -404,7 +405,7 @@ impl Smb {
             let cb_data_ptr = Box::into_raw(cb_data);
             smb2_notify_change_filehandle_async(ctx, fh, notify_flags.bits(), filter.bits(), 1, Some(smb_notify_change_callback), cb_data_ptr.cast::<c_void>());
 
-            loop {
+            while cancelled_rx.try_recv().is_err() { // FIXME: more stringent check? (taking into account dropped sender?)
                 let fd = smb2_get_fd(ctx);
                 if fd < 0 {
                     println!("Smb notify_change_async - bad fd returned from smb2_get_fd");
