@@ -1,6 +1,6 @@
 use std::collections::{BTreeSet, BTreeMap};
 use std::io::Error;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock};
 use bytes::BufMut;
 
@@ -137,7 +137,7 @@ impl VFS for SMBConnection {
         Ok(())
     }
 
-    fn watch(&self, _path: &str, _mode: super::VFSWatchMode, _listen_events: super::VFSFileNotificationOperationFlags, _cb: Box<dyn super::VFSNotifyChangeCallback>, _cancelled_rx: &Receiver<bool>) {
+    fn watch(&self, _path: &str, _mode: super::VFSWatchMode, _listen_events: super::VFSFileNotificationOperationFlags, _cb: Box<dyn super::VFSNotifyChangeCallback>, _ready_tx: &Sender<bool>, _cancelled_rx: &Receiver<bool>) {
         todo!("watch unimplemented for mock")
     }
 }

@@ -13,7 +13,7 @@ use std::mem::zeroed;
 use std::os::raw::c_char;
 use std::os::unix::ffi::OsStrExt;
 use std::path::{Path, PathBuf};
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, Mutex};
 use bitflags::bitflags;
 
@@ -398,7 +398,7 @@ impl Smb {
         }
     }
 
-    pub fn notify_change(&self, path: &Path, notify_flags: SmbChangeNotifyFlags, filter: SmbChangeNotifyFileFilter, cb: Box<dyn SmbNotifyChangeCallback>, cancelled_rx: &Receiver<bool>) {
+    pub fn notify_change(&self, path: &Path, notify_flags: SmbChangeNotifyFlags, filter: SmbChangeNotifyFileFilter, cb: Box<dyn SmbNotifyChangeCallback>, ready_tx: &Sender<bool>, cancelled_rx: &Receiver<bool>) {
         println!("Smb notify_change");
         let path = self.get_resolved_path_cstr(path).unwrap();
         let ctx_ref = using_mutex!(self.context);
@@ -414,6 +414,7 @@ impl Smb {
             let cb_data_ptr = Box::into_raw(cb_data);
             println!("Smb notify_change - calling smb2_notify_change_filehandle_async");
             smb2_notify_change_filehandle_async(ctx, fh, notify_flags.bits(), filter.bits(), 1, Some(smb_notify_change_callback), cb_data_ptr.cast::<c_void>());
+            let _ = ready_tx.send(true);
 
             let pfd = Box::new(libc::pollfd{fd: 0, events: 0, revents: 0});
             let pfd_ptr = Box::into_raw(pfd);

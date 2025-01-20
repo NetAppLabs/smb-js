@@ -614,6 +614,7 @@ impl JsSmbDirectoryHandle {
         })
       })?;
 
+    let (ready_tx, ready_rx) = channel();
     let (done_tx, done_rx) = channel();
     let (cancelled_tx, cancelled_rx) = channel();
     let ret = Cancellable{done_rx: Arc::new(RwLock::new(Box::new(done_rx))), cancelled_tx: Arc::new(RwLock::new(Box::new(cancelled_tx)))};
@@ -630,11 +631,12 @@ impl JsSmbDirectoryHandle {
         let my_smb = using_rwlock!(smb);
         let cb = Box::new(JsSmbDirectoryHandleWatchCallback{tsfn: tsfn.clone()});
         println!("watch thread - watch");
-        my_smb.watch(path, watch_mode, listen_flags, cb, &cancelled_rx);
+        my_smb.watch(path, watch_mode, listen_flags, cb, &ready_tx, &cancelled_rx);
       }
       let _ = done_tx.send(true);
       println!("watch thread done");
     });
+    let _ = ready_rx.recv();
     Ok(ret)
   }
 }
