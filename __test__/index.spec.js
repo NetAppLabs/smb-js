@@ -1139,21 +1139,34 @@ ava_1.default.serial('should handle watch', async (t) => {
     });
     await sleep(500)
         .then(async () => {
+        console.log("--node-- 1st calling await getRootHandle");
         const rootHandleAlt = await getRootHandle();
+        console.log("--node-- 1st calling await rootHandleAlt.getFileHandle");
         const fileHandle = await rootHandleAlt.getFileHandle("watch_event_file", { create: true });
+        console.log("--node-- 1st calling await fileHandle.createWritable");
         const writable = await fileHandle.createWritable();
+        console.log("--node-- 1st calling await writable.getWriter");
         const writer = await writable.getWriter();
+        console.log("--node-- 1st calling await sleep");
         await sleep(100);
+        console.log("--node-- 1st calling await writer.write");
         await writer.write("eventful");
+        console.log("--node-- 1st calling await rootHandleAlt.removeEntry");
         await rootHandleAlt.removeEntry("watch_event_file");
     });
     await sleep(500)
         .then(async () => {
+        console.log("--node-- 2nd calling await getRootHandle");
         const rootHandleAlt = await getRootHandle();
+        console.log("--node-- 2nd calling await rootHandleAlt.getFileHandle");
         const fileHandle = await rootHandleAlt.getFileHandle("watch_event_file2", { create: true });
+        console.log("--node-- 2nd calling await fileHandle.createWritable");
         const writable = await fileHandle.createWritable();
+        console.log("--node-- 2nd calling await writable.getWriter");
         const writer = await writable.getWriter();
+        console.log("--node-- 2nd calling await writer.write");
         await writer.write("eventful");
+        console.log("--node-- 2nd calling await rootHandleAlt.removeEntry");
         await rootHandleAlt.removeEntry("watch_event_file2");
     });
     await sleep(200);
@@ -1201,19 +1214,30 @@ ava_1.default.serial('should handle watch on subdirectory', async (t) => {
     });
     await sleep(500)
         .then(async () => {
+        console.log("--node-- 1st calling await subHandle.getFileHandle");
         const fileHandle = await subHandle.getFileHandle("watch_event_file", { create: true });
+        console.log("--node-- 1st calling await fileHandle.createWritable");
         const writable = await fileHandle.createWritable();
+        console.log("--node-- 1st calling await writable.getWriter");
         const writer = await writable.getWriter();
+        console.log("--node-- 1st calling await sleep");
         await sleep(100);
+        console.log("--node-- 1st calling await writer.write");
         await writer.write("eventful");
+        console.log("--node-- 1st calling await subHandle.removeEntry");
         await subHandle.removeEntry("watch_event_file");
     });
     await sleep(500)
         .then(async () => {
+        console.log("--node-- 2nd calling await subSubHandle.getFileHandle");
         const fileHandle = await subSubHandle.getFileHandle("watch_event_file2", { create: true });
+        console.log("--node-- 2nd calling await fileHandle.createWritable");
         const writable = await fileHandle.createWritable();
+        console.log("--node-- 2nd calling await writable.getWriter");
         const writer = await writable.getWriter();
+        console.log("--node-- 2nd calling await writer.write");
         await writer.write("eventful");
+        console.log("--node-- 2nd calling await subSubHandle.removeEntry");
         await subSubHandle.removeEntry("watch_event_file2");
     });
     const fileHandle = await rootHandle.getFileHandle("watch_event_file3", { create: true });
