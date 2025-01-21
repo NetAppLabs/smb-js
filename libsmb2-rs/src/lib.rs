@@ -398,20 +398,29 @@ impl Smb {
         unsafe {
             let fh = smb2_open(ctx, path.as_ptr(), libc::O_DIRECTORY);
             if fh.is_null() {
-                println!("Smb notify_change_async - smb2_open returned null - Error::last_os_error() = {:?}", Error::last_os_error());
+                println!("Smb notify_change - smb2_open returned null - Error::last_os_error() = {:?}", Error::last_os_error());
                 return;
             }
+
             let cb_data = Box::new(NotifyChangeCallback{inner: cb, smb: Arc::clone(&self.context), fh});
             let cb_data_ptr = Box::into_raw(cb_data);
-            smb2_notify_change_filehandle_async(ctx, fh, notify_flags.bits(), filter.bits(), 1, Some(smb_notify_change_callback), cb_data_ptr.cast::<c_void>());
-            let _ = ready_tx.send(true);
-
             let pfd = Box::new(libc::pollfd{fd: 0, events: 0, revents: 0});
             let pfd_ptr = Box::into_raw(pfd);
+            let _ = ready_tx.send(true);
+            let mut count = 0_usize;
+            const ITERATIONS_BEFORE_REFRESH: usize = 16;
             while cancelled_rx.try_recv().is_err() { // FIXME: more stringent check? (taking into account dropped sender?)
+                if count % ITERATIONS_BEFORE_REFRESH == 0 {
+                    let ret = smb2_notify_change_filehandle_async(ctx, fh, notify_flags.bits(), filter.bits(), 1, Some(smb_notify_change_callback), cb_data_ptr.cast::<c_void>());
+                    if ret < 0 {
+                        println!("Smb notify_change - called smb2_notify_change_filehandle_async - ret = {:?}", ret);
+                        break;
+                    }
+                }
+
                 let fd = smb2_get_fd(ctx);
                 if fd < 0 {
-                    println!("Smb notify_change_async - bad fd returned from smb2_get_fd");
+                    println!("Smb notify_change - bad fd returned from smb2_get_fd");
                     break;
                 }
 
@@ -420,16 +429,17 @@ impl Smb {
                 (*pfd_ptr).revents = 0;
                 let ret = libc::poll(pfd_ptr, 1, 1000);
                 if ret < 0 {
-                    println!("Smb notify_change_async - called libc::poll - ret = {:?}", ret);
+                    println!("Smb notify_change - called libc::poll - ret = {:?}", ret);
                     break;
                 }
                 if (*pfd_ptr).revents != 0 {
                     let ret = smb2_service(ctx, (*pfd_ptr).revents.into());
                     if ret < 0 {
-                        println!("Smb notify_change_async - called smb2_service - ret = {:?}", ret);
+                        println!("Smb notify_change - called smb2_service - ret = {:?}", ret);
                         break;
                     }
                 }
+                count += 1;
             }
             let _pfd_revived = Box::from_raw(pfd_ptr); // XXX: so as to free up the memory when this falls out of scope
         }
