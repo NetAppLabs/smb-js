@@ -617,7 +617,8 @@ impl JsSmbDirectoryHandle {
     let (done_tx, done_rx) = channel();
     let (cancelled_tx, cancelled_rx) = channel();
     let ret = Cancellable{done_rx: Arc::new(RwLock::new(Box::new(done_rx))), cancelled_tx: Arc::new(RwLock::new(Box::new(cancelled_tx)))};
-    let handle = self.handle.clone();
+    let mut handle = self.handle.clone();
+    handle.smb = None;
     thread::spawn(move || {
       let watch_mode = VFSWatchMode::Recursive;
       let listen_flags = VFSFileNotificationOperation::all();
