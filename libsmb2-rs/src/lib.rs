@@ -987,34 +987,60 @@ impl SmbFile {
     }
 
     pub fn pread_into(&self, count: u64, offset: u64, buffer: &mut [u8]) -> Result<i32> {
+        const MINIMUM_READ_SIZE: u64 = 65536; // XXX: according to SMB documentation, 65536 is the minimum
         let ctx_ref = using_mutex!(self.smb);
         let ctx = *ctx_ref;
         unsafe {
-            let read_size = smb2_pread(
-                ctx,
-                self.handle,
-                buffer.as_mut_ptr() as *mut _,
-                count as u32,
-                offset,
-            );
-            check_retcode(ctx, read_size)?;
-            Ok(read_size)
+            let max_read_size = (smb2_get_max_read_size(ctx) as u64).max(MINIMUM_READ_SIZE);
+            let buffer_len = buffer.len();
+            let mut index = 0;
+            let mut offset = offset;
+            let mut remaining = count;
+            while remaining > 0 {
+                let chunk_size = remaining.min(max_read_size);
+                let chunk = &mut buffer[index..buffer_len];
+                let read_size = smb2_pread(
+                    ctx,
+                    self.handle,
+                    chunk.as_mut_ptr() as *mut _,
+                    chunk_size as u32,
+                    offset,
+                );
+                check_retcode(ctx, read_size)?;
+                remaining -= read_size as u64;
+                offset += read_size as u64;
+                index += read_size as usize;
+            }
+            Ok(count as i32)
         }
     }
 
     pub fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<i32> {
+        const MINIMUM_WRITE_SIZE: usize = 65536; // XXX: according to SMB documentation, 65536 is the minimum
         let ctx_ref = using_mutex!(self.smb);
         let ctx = *ctx_ref;
         unsafe {
-            let write_size = smb2_pwrite(
-                ctx,
-                self.handle,
-                buffer.as_ptr() as *mut _,
-                buffer.len() as u32,
-                offset,
-            );
-            check_retcode(ctx, write_size)?;
-            Ok(write_size)
+            let max_write_size = (smb2_get_max_write_size(ctx) as usize).max(MINIMUM_WRITE_SIZE);
+            let buffer_len = buffer.len();
+            let mut index = 0;
+            let mut offset = offset;
+            let mut remaining = buffer_len;
+            while remaining > 0 {
+                let chunk_size = remaining.min(max_write_size);
+                let chunk = &buffer[index..buffer_len];
+                let write_size = smb2_pwrite(
+                    ctx,
+                    self.handle,
+                    chunk.as_ptr() as *mut _,
+                    chunk_size as u32,
+                    offset,
+                );
+                check_retcode(ctx, write_size)?;
+                remaining -= write_size as usize;
+                offset += write_size as u64;
+                index += write_size as usize;
+            }
+            Ok(buffer_len as i32)
         }
     }
 

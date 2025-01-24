@@ -1058,6 +1058,24 @@ ava_1.default.serial('should succeed when writing string after truncating beyond
     t.is(String.fromCharCode.apply(null, new Uint8Array(buf)), 'hello rust\0\0\0tsur olleh');
     await rootHandle.removeEntry(fileHandle.name);
 });
+ava_1.default.serial('should succeed when writing (and reading) file larger than max_write_size (and max_read_size)', async (t) => {
+    const rootHandle = await getRootHandle();
+    const fileHandle = await rootHandle.getFileHandle('writable-write-larger-than-max-write-size', { create: true });
+    const writable = await fileHandle.createWritable();
+    const contents = new Uint8Array(10 * 1024 * 1024); // XXX: samba seems to have max read/write size of 8 MiB
+    contents[2] = 210;
+    contents[contents.byteLength - 2] = 123;
+    await writable.write(contents);
+    const file = await fileHandle.getFile();
+    t.is(file.size, contents.byteLength);
+    const fileContentsBuf = await file.arrayBuffer();
+    const fileContents = new Uint8Array(fileContentsBuf);
+    t.is(fileContents.byteLength, contents.byteLength);
+    for (let i = 0; i < fileContents.byteLength; i++) {
+        t.is(fileContents[i], contents[i]);
+    }
+    await rootHandle.removeEntry(fileHandle.name);
+});
 ava_1.default.serial('should succeed when closing writable file stream', async (t) => {
     const rootHandle = await getRootHandle();
     const fileHandle = await rootHandle.getFileHandle('writable-close', { create: true });
@@ -1125,127 +1143,121 @@ ava_1.default.serial('should handle getting directories concurrently', async (t)
         t.is(quatre.name, 'quatre');
     }
 });
-ava_1.default.serial('should handle watch', async (t) => {
-    if (node_process_1.default.env.TEST_USING_MOCKS) {
-        t.pass("n/a for mocks");
-        return;
-    }
-    const sleep = async (ms) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
-    const rootHandle = await getRootHandle();
-    const smbHandle = rootHandle;
-    const caught = [];
-    const watcher = smbHandle.watch(async (watchEvent) => {
-        caught.push(watchEvent);
-    });
-    await sleep(500)
-        .then(async () => {
-        const rootHandleAlt = await getRootHandle();
-        const fileHandle = await rootHandleAlt.getFileHandle("watch_event_file", { create: true });
-        const writable = await fileHandle.createWritable();
-        const writer = await writable.getWriter();
+if (!node_process_1.default.env.TEST_USING_MOCKS) {
+    ava_1.default.serial('should handle watch', async (t) => {
+        const sleep = async (ms) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
+        const rootHandle = await getRootHandle();
+        const smbHandle = rootHandle;
+        const caught = [];
+        const watcher = smbHandle.watch(async (watchEvent) => {
+            caught.push(watchEvent);
+        });
+        await sleep(500)
+            .then(async () => {
+            const rootHandleAlt = await getRootHandle();
+            const fileHandle = await rootHandleAlt.getFileHandle("watch_event_file", { create: true });
+            const writable = await fileHandle.createWritable();
+            const writer = await writable.getWriter();
+            await sleep(100);
+            await writer.write("eventful");
+            await rootHandleAlt.removeEntry("watch_event_file");
+        });
+        await sleep(500)
+            .then(async () => {
+            const rootHandleAlt = await getRootHandle();
+            const fileHandle = await rootHandleAlt.getFileHandle("watch_event_file2", { create: true });
+            const writable = await fileHandle.createWritable();
+            const writer = await writable.getWriter();
+            await writer.write("eventful");
+            await rootHandleAlt.removeEntry("watch_event_file2");
+        });
         await sleep(100);
-        await writer.write("eventful");
-        await rootHandleAlt.removeEntry("watch_event_file");
+        // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
+        const expectedEntries = [
+            { path: "watch_event_file", action: "create" },
+            { path: "watch_event_file", action: "write" },
+            { path: "watch_event_file", action: "remove" },
+            { path: "watch_event_file2", action: "create" },
+            { path: "watch_event_file2", action: "write" },
+            { path: "watch_event_file2", action: "remove" },
+        ];
+        let expectedIndex = 0;
+        caught.reverse();
+        while (caught.length > 0) {
+            const entry = caught.pop();
+            if (entry?.action !== "write" && expectedEntries[expectedIndex].action === "write") {
+                // XXX: we've encountered something other than write event when "expecting" write event - increment to next expected event
+                expectedIndex++;
+            }
+            const expectedEntry = expectedEntries[expectedIndex];
+            t.deepEqual(entry, expectedEntry);
+            if (entry?.action !== "write") {
+                // XXX: for events other than write, we simply increment to next expected event
+                expectedIndex++;
+            }
+        }
+        t.is(expectedIndex, expectedEntries.length);
+        watcher.cancel();
     });
-    await sleep(500)
-        .then(async () => {
-        const rootHandleAlt = await getRootHandle();
-        const fileHandle = await rootHandleAlt.getFileHandle("watch_event_file2", { create: true });
+    ava_1.default.serial('should handle watch on subdirectory', async (t) => {
+        const sleep = async (ms) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
+        const rootHandle = await getRootHandle();
+        const subHandle = await rootHandle.getDirectoryHandle("subbed", { create: true });
+        const subSubHandle = await subHandle.getDirectoryHandle("sub", { create: true });
+        const smbHandle = subHandle;
+        const caught = [];
+        const watcher = smbHandle.watch(async (watchEvent) => {
+            caught.push(watchEvent);
+        });
+        await sleep(500)
+            .then(async () => {
+            const fileHandle = await subHandle.getFileHandle("watch_event_file", { create: true });
+            const writable = await fileHandle.createWritable();
+            const writer = await writable.getWriter();
+            await sleep(100);
+            await writer.write("eventful");
+            await subHandle.removeEntry("watch_event_file");
+        });
+        await sleep(500)
+            .then(async () => {
+            const fileHandle = await subSubHandle.getFileHandle("watch_event_file2", { create: true });
+            const writable = await fileHandle.createWritable();
+            const writer = await writable.getWriter();
+            await writer.write("eventful");
+            await subSubHandle.removeEntry("watch_event_file2");
+        });
+        const fileHandle = await rootHandle.getFileHandle("watch_event_file3", { create: true });
         const writable = await fileHandle.createWritable();
         const writer = await writable.getWriter();
         await writer.write("eventful");
-        await rootHandleAlt.removeEntry("watch_event_file2");
-    });
-    await sleep(100);
-    // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
-    const expectedEntries = [
-        { path: "watch_event_file", action: "create" },
-        { path: "watch_event_file", action: "write" },
-        { path: "watch_event_file", action: "remove" },
-        { path: "watch_event_file2", action: "create" },
-        { path: "watch_event_file2", action: "write" },
-        { path: "watch_event_file2", action: "remove" },
-    ];
-    let expectedIndex = 0;
-    caught.reverse();
-    while (caught.length > 0) {
-        const entry = caught.pop();
-        if (entry?.action !== "write" && expectedEntries[expectedIndex].action === "write") {
-            // XXX: we've encountered something other than write event when "expecting" write event - increment to next expected event
-            expectedIndex++;
-        }
-        const expectedEntry = expectedEntries[expectedIndex];
-        t.deepEqual(entry, expectedEntry);
-        if (entry?.action !== "write") {
-            // XXX: for events other than write, we simply increment to next expected event
-            expectedIndex++;
-        }
-    }
-    t.is(expectedIndex, expectedEntries.length);
-    watcher.cancel();
-});
-ava_1.default.serial('should handle watch on subdirectory', async (t) => {
-    if (node_process_1.default.env.TEST_USING_MOCKS) {
-        t.pass("n/a for mocks");
-        return;
-    }
-    const sleep = async (ms) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
-    const rootHandle = await getRootHandle();
-    const subHandle = await rootHandle.getDirectoryHandle("subbed", { create: true });
-    const subSubHandle = await subHandle.getDirectoryHandle("sub", { create: true });
-    const smbHandle = subHandle;
-    const caught = [];
-    const watcher = smbHandle.watch(async (watchEvent) => {
-        caught.push(watchEvent);
-    });
-    await sleep(500)
-        .then(async () => {
-        const fileHandle = await subHandle.getFileHandle("watch_event_file", { create: true });
-        const writable = await fileHandle.createWritable();
-        const writer = await writable.getWriter();
+        await rootHandle.removeEntry("watch_event_file3");
         await sleep(100);
-        await writer.write("eventful");
-        await subHandle.removeEntry("watch_event_file");
-    });
-    await sleep(500)
-        .then(async () => {
-        const fileHandle = await subSubHandle.getFileHandle("watch_event_file2", { create: true });
-        const writable = await fileHandle.createWritable();
-        const writer = await writable.getWriter();
-        await writer.write("eventful");
-        await subSubHandle.removeEntry("watch_event_file2");
-    });
-    const fileHandle = await rootHandle.getFileHandle("watch_event_file3", { create: true });
-    const writable = await fileHandle.createWritable();
-    const writer = await writable.getWriter();
-    await writer.write("eventful");
-    await rootHandle.removeEntry("watch_event_file3");
-    await sleep(100);
-    // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
-    const expectedEntries = [
-        { path: "watch_event_file", action: "create" },
-        { path: "watch_event_file", action: "write" },
-        { path: "watch_event_file", action: "remove" },
-        { path: "sub/watch_event_file2", action: "create" },
-        { path: "sub/watch_event_file2", action: "write" },
-        { path: "sub/watch_event_file2", action: "remove" },
-    ];
-    let expectedIndex = 0;
-    caught.reverse();
-    while (caught.length > 0) {
-        const entry = caught.pop();
-        if (entry?.action !== "write" && expectedEntries[expectedIndex].action === "write") {
-            // XXX: we've encountered something other than write event when "expecting" write event - increment to next expected event
-            expectedIndex++;
+        // XXX: below checks are a bit of a headache, as there can be 0-n number of write events (hence the weird conditional increments)
+        const expectedEntries = [
+            { path: "watch_event_file", action: "create" },
+            { path: "watch_event_file", action: "write" },
+            { path: "watch_event_file", action: "remove" },
+            { path: "sub/watch_event_file2", action: "create" },
+            { path: "sub/watch_event_file2", action: "write" },
+            { path: "sub/watch_event_file2", action: "remove" },
+        ];
+        let expectedIndex = 0;
+        caught.reverse();
+        while (caught.length > 0) {
+            const entry = caught.pop();
+            if (entry?.action !== "write" && expectedEntries[expectedIndex].action === "write") {
+                // XXX: we've encountered something other than write event when "expecting" write event - increment to next expected event
+                expectedIndex++;
+            }
+            const expectedEntry = expectedEntries[expectedIndex];
+            t.deepEqual(entry, expectedEntry);
+            if (entry?.action !== "write") {
+                // XXX: for events other than write, we simply increment to next expected event
+                expectedIndex++;
+            }
         }
-        const expectedEntry = expectedEntries[expectedIndex];
-        t.deepEqual(entry, expectedEntry);
-        if (entry?.action !== "write") {
-            // XXX: for events other than write, we simply increment to next expected event
-            expectedIndex++;
-        }
-    }
-    t.is(expectedIndex, expectedEntries.length);
-    sleep(500).then(() => watcher.cancel());
-    await watcher.wait();
-});
+        t.is(expectedIndex, expectedEntries.length);
+        sleep(500).then(() => watcher.cancel());
+        await watcher.wait();
+    });
+}
