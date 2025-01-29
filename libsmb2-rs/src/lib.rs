@@ -977,6 +977,20 @@ impl SmbFile {
         }
     }
 
+    pub fn get_max_read_size(&self) -> u64 {
+        const MINIMUM_READ_SIZE: u64 = 65536; // XXX: according to SMB documentation, 65536 is the minimum
+        let ctx_ref = using_mutex!(self.smb);
+        let ctx = *ctx_ref;
+        unsafe { (smb2_get_max_read_size(ctx) as u64).max(MINIMUM_READ_SIZE) }
+    }
+
+    fn get_max_write_size(&self) -> usize {
+        const MINIMUM_WRITE_SIZE: usize = 65536; // XXX: according to SMB documentation, 65536 is the minimum
+        let ctx_ref = using_mutex!(self.smb);
+        let ctx = *ctx_ref;
+        unsafe { (smb2_get_max_write_size(ctx) as usize).max(MINIMUM_WRITE_SIZE) }
+    }
+
     pub fn pread(&self, count: u64, offset: u64) -> Result<Vec<u8>> {
         let mut buffer: Vec<u8> = Vec::with_capacity(count as usize);
         let read_size = self.pread_into(count, offset, &mut buffer)?;
@@ -987,11 +1001,10 @@ impl SmbFile {
     }
 
     pub fn pread_into(&self, count: u64, offset: u64, buffer: &mut [u8]) -> Result<i32> {
-        const MINIMUM_READ_SIZE: u64 = 65536; // XXX: according to SMB documentation, 65536 is the minimum
+        let max_read_size = self.get_max_read_size();
         let ctx_ref = using_mutex!(self.smb);
         let ctx = *ctx_ref;
         unsafe {
-            let max_read_size = (smb2_get_max_read_size(ctx) as u64).max(MINIMUM_READ_SIZE);
             let buffer_len = buffer.len();
             let mut index = 0;
             let mut offset = offset;
@@ -1016,11 +1029,10 @@ impl SmbFile {
     }
 
     pub fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<i32> {
-        const MINIMUM_WRITE_SIZE: usize = 65536; // XXX: according to SMB documentation, 65536 is the minimum
+        let max_write_size = self.get_max_write_size();
         let ctx_ref = using_mutex!(self.smb);
         let ctx = *ctx_ref;
         unsafe {
-            let max_write_size = (smb2_get_max_write_size(ctx) as usize).max(MINIMUM_WRITE_SIZE);
             let buffer_len = buffer.len();
             let mut index = 0;
             let mut offset = offset;

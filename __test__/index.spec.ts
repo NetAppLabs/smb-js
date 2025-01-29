@@ -612,6 +612,36 @@ test.serial('should return stream for file', async (t) => {
   t.true(y.done);
 })
 
+test.serial('should succeed when streaming file larger than max_read_size', async (t) => {
+  const rootHandle = await getRootHandle();
+  const fileHandle = await rootHandle.getFileHandle('writable-stream-larger-than-max-read-size', {create: true}) as SmbFileHandle;
+  const writable = await fileHandle.createWritable();
+  const contents = new Uint8Array(10*1024*1024); // XXX: samba seems to have max read/write size of 8 MiB
+  contents[2] = 210;
+  contents[contents.byteLength-2] = 123;
+  await writable.write(contents);
+  const file = await fileHandle.getFile();
+  t.is(file.size, contents.byteLength);
+  const stream = file.stream();
+  const reader = stream.getReader();
+  const x = await reader.read();
+  x.value = x.value || new Uint8Array();
+  t.false(x.done);
+  t.is(x.value.length, 8*1024*1024);
+  for (let i = 0; i < x.value.length; i++) {
+    t.is(x.value[i], contents[i]);
+  }
+  const y = await reader.read();
+  y.value = y.value || new Uint8Array();
+  t.false(y.done);
+  t.is(y.value.length, 2*1024*1024);
+  for (let i = 0; i < y.value.length; i++) {
+    t.is(y.value[i], contents[8*1024*1024 + i]);
+  }
+  const z = await reader.read();
+  t.true(z.done);
+})
+
 test.serial('should return stream for blob', async (t) => {
   const rootHandle = await getRootHandle();
   const fileHandle = await rootHandle.getFileHandle('annar');

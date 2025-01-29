@@ -244,6 +244,10 @@ impl VFSFile for SMBFile2 {
         })
     }
 
+    fn get_max_read_size(&self) -> u64 {
+        8*1024*1024 // XXX: mimic samba's (default?) max_read_size of 8 MiB
+    }
+
     fn pread_into(&self, count: u32, offset: u64, buffer: &mut [u8]) -> Result<u32> {
         let mocks = using_rwlock_read!(self.smb.mocks);
         let readlen = if let Some(content) = mocks.files.get(&self.path) {

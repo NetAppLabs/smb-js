@@ -79,6 +79,7 @@ pub trait VFSDirectory: Debug + Iterator<Item = Result<VFSDirEntry>> {}
 
 pub trait VFSFile: Debug {
     fn fstat(&self) -> Result<VFSStat>;
+    fn get_max_read_size(&self) -> u64;
     fn pread_into(&self, count: u32, offset: u64, buffer: &mut [u8]) -> Result<u32>;
     fn pwrite(&self, buffer: &[u8], offset: u64) -> Result<u32>;
 }

@@ -305,6 +305,10 @@ impl VFSFile for SMBFile2 {
         })
     }
 
+    fn get_max_read_size(&self) -> u64 {
+        self.file.get_max_read_size()
+    }
+
     fn pread_into(&self, count: u32, offset: u64, buffer: &mut [u8]) -> Result<u32> {
         self.file.pread_into(count as u64, offset, buffer).map(|res| res as u32)
     }

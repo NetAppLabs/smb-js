@@ -820,7 +820,7 @@ impl JsSmbFile {
   pub fn stream(&self, env: Env) -> Result<Object> {
     let global = env.get_global()?;
     let constructor = global.get_named_property::<JsFunction>(JS_TYPE_READABLE_STREAM)?;
-    let arg = JsSmbReadableStreamSource{content: self.smb_bytes()?, count: 0, type_: READABLE_STREAM_SOURCE_TYPE_BYTES.into()}.into_instance(env)?;
+    let arg = JsSmbReadableStreamSource{handle: self.handle.clone(), offset: 0, type_: READABLE_STREAM_SOURCE_TYPE_BYTES.into()}.into_instance(env)?;
     let stream = constructor.new_instance(&[arg])?;
     Ok(stream)
   }
@@ -861,8 +861,8 @@ impl Task for JsSmbFileArrayBuffer {
 
 #[napi]
 pub struct JsSmbReadableStreamSource {
-  content: Vec<u8>,
-  count: usize,
+  handle: JsSmbHandle,
+  offset: u64,
   #[napi(readonly, ts_type="'bytes'")]
   pub type_: String
 }
@@ -873,12 +873,21 @@ impl JsSmbReadableStreamSource {
   #[napi]
   pub fn pull(&mut self, env: Env, #[napi(ts_arg_type="ReadableByteStreamController")] controller: Unknown) -> Result<()> {
     let controller = controller.coerce_to_object()?;
-    if self.count < self.content.len() {
+    let smb = &self.handle.smb;
+    let mut my_smb = using_rwlock!(smb);
+    let smb_file = my_smb.open(self.handle.path.as_str(), nix::fcntl::OFlag::O_SYNC.bits() as u32)?;
+    let size = smb_file.fstat()?.size;
+    if self.offset < size {
+      let max_count = smb_file.get_max_read_size();
+      let count = max_count.min(size - self.offset) as u32;
+      let mut buffer = vec![0u8; count as usize];
+      let bytes_read = smb_file.pread_into(count, self.offset, &mut buffer)?;
+
       let enqueue = controller.get_named_property::<JsFunction>(FIELD_ENQUEUE)?;
-      let arg = env.create_arraybuffer_with_data(self.content.clone())?;
-      let arg = arg.into_raw().into_typedarray(TypedArrayType::Uint8, self.content.len(), 0)?;
+      let arg = env.create_arraybuffer_with_data(buffer)?;
+      let arg = arg.into_raw().into_typedarray(TypedArrayType::Uint8, bytes_read as usize, 0)?;
       let _ = enqueue.call(Some(&controller), &[arg]);
-      self.count = self.content.len();
+      self.offset += bytes_read as u64;
     } else {
       let close = controller.get_named_property::<JsFunction>(FIELD_CLOSE)?;
       let _ = close.call_without_args(Some(&controller))?;
