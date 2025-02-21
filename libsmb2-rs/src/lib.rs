@@ -50,7 +50,7 @@ bitflags! {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq)]
 #[repr(u32)]
 pub enum SmbChangeNotifyAction {
     Added = 1,
@@ -62,7 +62,6 @@ pub enum SmbChangeNotifyAction {
     RemovedStream,
     ModifiedStream
 }
-
 
 impl SmbChangeNotifyAction {
     fn from(action: u32) -> Result<SmbChangeNotifyAction> {
@@ -83,6 +82,17 @@ impl SmbChangeNotifyAction {
     }
 }
 
+impl ToString for SmbChangeNotifyAction {
+    fn to_string(&self) -> String {
+        match self {
+            SmbChangeNotifyAction::Added => "create",
+            SmbChangeNotifyAction::Removed => "remove",
+            SmbChangeNotifyAction::Modified | SmbChangeNotifyAction::AddedStream |
+            SmbChangeNotifyAction::RemovedStream | SmbChangeNotifyAction::ModifiedStream => "write",
+            SmbChangeNotifyAction::RenamedOldName | SmbChangeNotifyAction::RenamedNewName => "rename",
+        }.to_string()
+    }
+}
 
 #[derive(Clone)]
 struct SmbPtr(Arc<Mutex<*mut smb2_context>>);
@@ -216,19 +226,14 @@ extern "C" fn smb_notify_change_callback(ctx: *mut smb2_context, status: i32, in
     let cb_ptr = cb_data.cast::<NotifyChangeCallback>();
     let cb = unsafe { Box::from_raw(cb_ptr) };
     let change_handle = info_handle.cast::<smb2_file_notify_change_information>();
-    let mut next = change_handle;
-    while !next.is_null() {
-        if let Ok((path, action)) = get_path_and_action_from_change_info(next) {
-            cb.call(path, action);
-            next = unsafe { (*next).next };
-        }
-    }
+    let change_vec: NotifyChangeInformationVec = change_handle.into();
+    change_vec.changes.into_iter().for_each(|info| cb.call(info.path, info.action.to_string(), info.from_path));
     unsafe { free_smb2_file_notify_change_information(ctx, change_handle); }
     std::mem::forget(cb); // XXX: prevent execution of NotifyChangeCallback::drop
 }
 
 pub trait SmbNotifyChangeCallback {
-    fn call(&self, path: String, action: String);
+    fn call(&self, path: String, action: String, from_path: Option<String>);
 }
 
 struct NotifyChangeCallback {
@@ -250,36 +255,48 @@ impl Drop for NotifyChangeCallback {
 }
 
 impl SmbNotifyChangeCallback for NotifyChangeCallback {
-    fn call(&self, path: String, action: String) {
-        self.inner.call(path, action);
+    fn call(&self, path: String, action: String, from_path: Option<String>) {
+        self.inner.call(path, action, from_path);
     }
 }
 
-fn get_path_and_action_from_change_info(change_info: *mut smb2_file_notify_change_information) -> Result<(String, String)> {
-    let file_path = unsafe { CStr::from_ptr((*change_info).name) };
-    let mut path = file_path.to_string_lossy().into_owned();
-    path = path.replace("\\", "/");
-
-    let int_action = unsafe { (*change_info).action };
-    let enum_action = SmbChangeNotifyAction::from(int_action)?;
-    let action = match enum_action {
-        SmbChangeNotifyAction::Added => "create",
-        SmbChangeNotifyAction::Removed => "remove",
-        SmbChangeNotifyAction::Modified => "write",
-        SmbChangeNotifyAction::RenamedOldName => "rename",
-        SmbChangeNotifyAction::RenamedNewName => "rename",
-        SmbChangeNotifyAction::AddedStream => "write",
-        SmbChangeNotifyAction::RemovedStream => "write",
-        SmbChangeNotifyAction::ModifiedStream => "write",
-    }.to_string();
-
-    Ok((path, action))
+struct NotifyChangeInformation {
+    path: String,
+    action: SmbChangeNotifyAction,
+    from_path: Option<String>,
 }
 
-#[derive(Clone)]
-pub struct NotifyChangeInformation {
-    pub path: String,
-    pub action: SmbChangeNotifyAction,
+impl Into<NotifyChangeInformation> for *mut smb2_file_notify_change_information {
+    fn into(self) -> NotifyChangeInformation {
+        let file_path = unsafe { CStr::from_ptr((*self).name) };
+        let mut path = file_path.to_string_lossy().into_owned();
+        path = path.replace("\\", "/");
+
+        let int_action = unsafe { (*self).action };
+        let action = SmbChangeNotifyAction::from(int_action).unwrap();
+        NotifyChangeInformation{path, action, from_path: None}
+    }
+}
+
+struct NotifyChangeInformationVec {
+    changes: Vec<NotifyChangeInformation>,
+}
+
+impl Into<NotifyChangeInformationVec> for *mut smb2_file_notify_change_information {
+    fn into(self) -> NotifyChangeInformationVec {
+        let mut changes: Vec<NotifyChangeInformation> = Vec::new();
+        let mut next = self;
+        while !next.is_null() {
+            let len = changes.len();
+            let mut change: NotifyChangeInformation = next.into();
+            if change.action == SmbChangeNotifyAction::RenamedNewName && len > 0 && changes[len-1].action == SmbChangeNotifyAction::RenamedOldName {
+                change.from_path = Some(changes.pop().unwrap().path);
+            }
+            changes.push(change);
+            next = unsafe { (*next).next };
+        }
+        NotifyChangeInformationVec{changes}
+    }
 }
 
 pub struct SmbUrl {

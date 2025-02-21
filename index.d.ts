@@ -21,6 +21,7 @@ export interface JsSmbCreateWritableOptions {
 export interface JsSmbNotifyChange {
   path: string
   action: string
+  fromPath?: string
 }
 export declare class JsSmbDirectoryHandleEntries {
   [Symbol.asyncIterator]: AsyncIterableIterator<[string, JsSmbDirectoryHandle | JsSmbFileHandle]>
