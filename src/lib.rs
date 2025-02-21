@@ -606,10 +606,10 @@ impl JsSmbDirectoryHandle {
 
   #[napi]
   pub fn watch(&self, callback: JsFunction) -> Result<Cancellable> {
-    let tsfn: ThreadsafeFunction<Result<(String, String)>, ErrorStrategy::Fatal> = callback
-      .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<(String, String), Error>>| {
-        ctx.value.map(|(path, action)| {
-          vec![JsSmbNotifyChange{path, action}]
+    let tsfn: ThreadsafeFunction<Result<(String, String, Option<String>)>, ErrorStrategy::Fatal> = callback
+      .create_threadsafe_function(0, |ctx: ThreadSafeCallContext<std::prelude::v1::Result<(String, String, Option<String>), Error>>| {
+        ctx.value.map(|(path, action, from_path)| {
+          vec![JsSmbNotifyChange{path, action, from_path}]
         })
       })?;
 
@@ -664,12 +664,12 @@ impl Cancellable {
 }
 
 struct JsSmbDirectoryHandleWatchCallback {
-  tsfn: ThreadsafeFunction<Result<(String, String)>, ErrorStrategy::Fatal>,
+  tsfn: ThreadsafeFunction<Result<(String, String, Option<String>)>, ErrorStrategy::Fatal>,
 }
 
 impl VFSNotifyChangeCallback for JsSmbDirectoryHandleWatchCallback {
-  fn call(&self, path: String, action: String) {
-    self.tsfn.call(Ok((path, action)), ThreadsafeFunctionCallMode::NonBlocking);
+  fn call(&self, path: String, action: String, from_path: Option<String>) {
+    self.tsfn.call(Ok((path, action, from_path)), ThreadsafeFunctionCallMode::NonBlocking);
   }
 }
 
@@ -1333,5 +1333,6 @@ fn is_array_buffer(obj: &Object) -> Result<bool> {
 pub struct JsSmbNotifyChange {
   pub path: String,
   pub action: String,
+  pub from_path: Option<String>,
 }
 

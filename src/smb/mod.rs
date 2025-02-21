@@ -47,7 +47,7 @@ pub enum VFSWatchMode {
 }
 
 pub trait VFSNotifyChangeCallback {
-    fn call(&self, path: String, action: String);
+    fn call(&self, path: String, action: String, from_path: Option<String>);
 }
 
 pub struct NotifyChangeCallback {
@@ -55,8 +55,8 @@ pub struct NotifyChangeCallback {
 }
 
 impl SmbNotifyChangeCallback for NotifyChangeCallback {
-    fn call(&self, path: String, action: String) {
-        self.inner.call(path, action);
+    fn call(&self, path: String, action: String, from_path: Option<String>) {
+        self.inner.call(path, action, from_path);
     }
 }
 
