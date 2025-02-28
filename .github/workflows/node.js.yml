@@ -40,7 +40,7 @@ jobs:
       if: runner.os == 'Linux'
       shell: bash
       run: |
-        sudo apt-get -y install samba \
+        sudo apt-get update && sudo apt-get -y install samba \
           libc6-dev-amd64-cross libc6-dev-arm64-cross \
           crossbuild-essential-arm64 crossbuild-essential-amd64 \
           gcc-aarch64-linux-gnu \

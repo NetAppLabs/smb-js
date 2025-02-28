@@ -22,20 +22,10 @@ export class SmbHandle implements FileSystemHandle {
   private _jsh: JsSmbHandle
   readonly kind: FileSystemHandleKind
   readonly name: string
-  /**
-   * @deprecated Old property just for Chromium <=85. Use `kind` property in the new API.
-   */
-  readonly isFile: boolean
-  /**
-   * @deprecated Old property just for Chromium <=85. Use `kind` property in the new API.
-   */
-  readonly isDirectory: boolean
   constructor(_jsh: JsSmbHandle) {
     this._jsh = _jsh;
     this.kind = _jsh.kind;
     this.name = _jsh.name;
-    this.isFile = _jsh.kind == 'file';
-    this.isDirectory = _jsh.kind == 'directory';
   }
   isSameEntry(other: FileSystemHandle): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
@@ -56,15 +46,7 @@ export class SmbHandle implements FileSystemHandle {
 
 export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectoryHandle {
   [Symbol.asyncIterator]: SmbDirectoryHandle['entries'] = this.entries
-  readonly kind: 'directory'
-  /**
-   * @deprecated Old property just for Chromium <=85. Use `kind` property in the new API.
-   */
-  readonly isFile: false
-  /**
-   * @deprecated Old property just for Chromium <=85. Use `kind` property in the new API.
-   */
-  readonly isDirectory: true
+  declare readonly kind: 'directory'
   private _js: JsSmbDirectoryHandle
   constructor(url: string);
   constructor(toWrap: JsSmbDirectoryHandle);
@@ -74,9 +56,6 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
     super(_js.toHandle());
     this[Symbol.asyncIterator] = this.entries;
     this._js = _js;
-    this.kind = 'directory';
-    this.isFile = false;
-    this.isDirectory = true;
     this.getFile = this.getFileHandle;
     this.getDirectory = this.getDirectoryHandle;
     this.getEntries = this.values;
@@ -148,22 +127,11 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
  }
 
 export class SmbFileHandle extends SmbHandle implements FileSystemFileHandle {
-  readonly kind: 'file'
-  /**
-   * @deprecated Old property just for Chromium <=85. Use `kind` property in the new API.
-   */
-  readonly isFile: true
-  /**
-   * @deprecated Old property just for Chromium <=85. Use `kind` property in the new API.
-   */
-  readonly isDirectory: false
+  declare readonly kind: "file";
   private _js: JsSmbFileHandle
   constructor(_js: JsSmbFileHandle) {
     super(_js.toHandle());
     this._js = _js;
-    this.kind = 'file';
-    this.isFile = true;
-    this.isDirectory = false;
   }
   async getFile(): Promise<File> {
     return this._js.getFile();

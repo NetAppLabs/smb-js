@@ -8,8 +8,6 @@ class SmbHandle {
         this._jsh = _jsh;
         this.kind = _jsh.kind;
         this.name = _jsh.name;
-        this.isFile = _jsh.kind == 'file';
-        this.isDirectory = _jsh.kind == 'directory';
     }
     isSameEntry(other) {
         return new Promise(async (resolve, reject) => {
@@ -37,9 +35,6 @@ class SmbDirectoryHandle extends SmbHandle {
         this[_a] = this.entries;
         this[Symbol.asyncIterator] = this.entries;
         this._js = _js;
-        this.kind = 'directory';
-        this.isFile = false;
-        this.isDirectory = true;
         this.getFile = this.getFileHandle;
         this.getDirectory = this.getDirectoryHandle;
         this.getEntries = this.values;
@@ -100,9 +95,6 @@ class SmbFileHandle extends SmbHandle {
     constructor(_js) {
         super(_js.toHandle());
         this._js = _js;
-        this.kind = 'file';
-        this.isFile = true;
-        this.isDirectory = false;
     }
     async getFile() {
         return this._js.getFile();

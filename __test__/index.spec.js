@@ -27,16 +27,12 @@ ava_1.default.serial('should have correct properties for directory', async (t) =
     const dirHandle = await rootHandle.getDirectoryHandle('first');
     t.is(dirHandle.kind, 'directory');
     t.is(dirHandle.name, 'first');
-    t.true(dirHandle.isDirectory);
-    t.false(dirHandle.isFile);
 });
 ava_1.default.serial('should have correct properties for file', async (t) => {
     const rootHandle = await getRootHandle();
     const dirHandle = await rootHandle.getFileHandle('annar');
     t.is(dirHandle.kind, 'file');
     t.is(dirHandle.name, 'annar');
-    t.false(dirHandle.isDirectory);
-    t.true(dirHandle.isFile);
 });
 ava_1.default.serial('should be same entry as self for directory', async (t) => {
     const rootHandle = await getRootHandle();
