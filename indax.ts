@@ -81,8 +81,13 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
       await this._js.getDirectoryHandle(name, options as JsSmbGetDirectoryOptions)
         .then((handle) => resolve(new SmbDirectoryHandle(handle) as FileSystemDirectoryHandle))
         .catch((reason) => {
-          if (reason.message == 'The path supplied exists, but was not an entry of requested type.') {
-            reason.name = 'TypeMismatchError';
+          let errMsg: string = reason.message;
+          if (errMsg !== undefined) {
+            if (errMsg == 'The path supplied exists, but was not an entry of requested type.') {
+              reason.name = 'TypeMismatchError';
+            } else if (errMsg.indexOf('not found') != -1) {
+              reason.name = 'NotFoundError';
+            }
           }
           reject(reason);
         });
@@ -93,8 +98,13 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
       await this._js.getFileHandle(name, options as JsSmbGetFileOptions)
         .then((handle) => resolve(new SmbFileHandle(handle) as FileSystemFileHandle))
         .catch((reason) => {
-          if (reason.message == 'The path supplied exists, but was not an entry of requested type.') {
-            reason.name = 'TypeMismatchError';
+          let errMsg: string = reason.message;
+          if (errMsg !== undefined) {
+            if (errMsg == 'The path supplied exists, but was not an entry of requested type.') {
+              reason.name = 'TypeMismatchError';
+            } else if (errMsg.indexOf('not found') != -1) {
+              reason.name = 'NotFoundError';
+            }
           }
           reject(reason);
         });
@@ -133,6 +143,12 @@ export class SmbFileHandle extends SmbHandle implements FileSystemFileHandle {
     super(_js.toHandle());
     this._js = _js;
   }
+
+  // @ts-ignore
+  async createSyncAccessHandle(): Promise<FileSystemSyncAccessHandle> {
+    throw Error('createSyncAccessHandle not implemented');
+  }
+
   async getFile(): Promise<File> {
     return this._js.getFile();
   }
