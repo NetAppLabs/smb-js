@@ -8,20 +8,32 @@ if command -v brew 2>&1 >/dev/null ; then
     SAMBA_DIR=`readlink -f $(brew --prefix samba)`
     echo "SAMBA_DIR: ${SAMBA_DIR}"
     SAMBA_SERVER="${SAMBA_DIR}/sbin/samba-dot-org-smbd"
+    PDBEDIT_COMMAND="${SAMBA_DIR}/bin/pdbedit"
 else
     SAMBA_SERVER="smbd"
+    PDBEDIT_COMMAND="pdbedit"
 fi
+
+
+SAMBA_DEFAULT_USER="guest"
+SAMBA_DEFAULT_PASSWORD=""
+
+# SAMBA_DEFAULT_USER="${USER}"
+# SAMBA_DEFAULT_PASSWORD="smbpass"
 
 SAMBA_CONFIG_DIR=`mktemp -d`
 mkdir -p ${SAMBA_CONFIG_DIR}/private
 mkdir -p ${SAMBA_CONFIG_DIR}/locks
 chmod 755 ${SAMBA_CONFIG_DIR}/locks
 echo "SAMBA_CONFIG_DIR: ${SAMBA_CONFIG_DIR}"
-SHARE_DIR=`mktemp -d`
+
+SHARE_DIR_TEMP=`mktemp -d`
+SHARE_DIR="${SHARE_DIR_TEMP}/smbtest"
+
 echo "SHARE_DIR: ${SHARE_DIR}"
-mkdir -p  ${SHARE_DIR}/test
-./scripts/setup-testdir.sh ${SHARE_DIR}/test
-chmod -R 777 ${SHARE_DIR}
+mkdir -p  ${SHARE_DIR}
+chmod 777 ${SHARE_DIR}
+./scripts/setup-testdir.sh ${SHARE_DIR}
 
 SAMBA_PORT="10445"
 
@@ -38,22 +50,25 @@ cat <<EOF > ${SAMBA_CONFIG_DIR}/smbd.conf
    state directory = ${SAMBA_CONFIG_DIR}/locks
    passdb backend = tdbsam:${SAMBA_CONFIG_DIR}/private/passdb.tdb
    winbindd socket directory = ${SAMBA_CONFIG_DIR}/locks
-   winbindd privileged socket directory = ${SAMBA_CONFIG_DIR}/locks
+   ;winbindd privileged socket directory = ${SAMBA_CONFIG_DIR}/locks
    ncalrpc dir = ${SAMBA_CONFIG_DIR}/locks
    server role = standalone server
    unix password sync = no
-   map to guest = bad user
-   usershare allow guests = yes
+   usershare allow guests = no
 
 [smbtest]
 comment = smbtest
 path = ${SHARE_DIR}
-read only = no
-browsable = yes
-directory mask = 0777
-create mask = 0666
-guest ok = yes
+public = yes
+writable = yes
+browseable = yes
+inherit permissions = yes
+vfs mkdir use tmp name = no
 EOF
+
+if [ "${SAMBA_DEFAULT_USER}" != "guest" ]; then
+    echo -e "${SAMBA_DEFAULT_PASSWORD}\n${SAMBA_DEFAULT_PASSWORD}\n" | ${PDBEDIT_COMMAND} --configfile ${SAMBA_CONFIG_DIR}/smbd.conf -t -a ${SAMBA_DEFAULT_USER}
+fi
 
 $SAMBA_SERVER \
     --port=${SAMBA_PORT} \
@@ -97,7 +112,7 @@ function wait_samba() {
 
 export RUST_BACKTRACE=1
 
-export SMB_URL="smb://guest@127.0.0.1:${SAMBA_PORT}/smbtest/test?sec=ntlmssp"
+export SMB_URL="smb://${SAMBA_DEFAULT_USER}:${SAMBA_DEFAULT_PASSWORD}@127.0.0.1:${SAMBA_PORT}/smbtest?sec=ntlmssp"
 
 echo "Test using mocks"
 TEST_USING_MOCKS=1 yarn test-ava
