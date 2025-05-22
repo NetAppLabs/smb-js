@@ -2,20 +2,34 @@
 
 ![https://github.com/NetAppLabs/smb-js/actions](https://github.com/NetAppLabs/smb-js/actions/workflows/node.js.yml/badge.svg)
 
-> SMB filesystem implementation for JavaScript/TypeScript.
+> SMB/CIFS filesystem implementation for use in JavaScript/TypeScript.
 
 
 ## Install this package
 
-Add an .npmrc file to your home directory or readable location
+Add an .npmrc file to your home directory or readable location with the contents:
+
+```
+@netapplabs:registry=https://npm.pkg.github.com/
+```
+
+or if you have a GITHUB_TOKEN
 
 ```
 //npm.pkg.github.com/:_authToken=${GITHUB_TOKEN}
 @netapplabs:registry=https://npm.pkg.github.com/
 ```
 
+Then in your project:
+
 ```
 yarn add @netapplabs/smb-js
+```
+
+or
+
+```
+bun add @netapplabs/smb-js
 ```
 
 # Usage
@@ -27,12 +41,12 @@ Note: May need to have "?sec=ntlmssp" argument on the URL connection string.
 ```
 import { SmbDirectoryHandle, SmbFileHandle } from '@netapplabs/smb-js'
 
-let smbURL="smb://myuser:mypassword@127.0.0.1:445/share?sec=ntlmssp";
-rootDir = new SmbDirectoryHandle(smbURL);
-let subPath = "sub-dir";
-let subDir = await rootDir.getDirectoryHandle(subPath);
-let subFileHandle = await subDir.getFileHandle("sub-file")
-let subFile = await subFileHandle.getFile();
+const smbURL="smb://myuser:mypassword@127.0.0.1:445/share?sec=ntlmssp";
+const rootDir = new SmbDirectoryHandle(smbURL);
+const subPath = "sub-dir";
+const subDir = await rootDir.getDirectoryHandle(subPath);
+const subFileHandle = await subDir.getFileHandle("sub-file")
+const subFile = await subFileHandle.getFile();
 const textContents = await subFile.text();
 console.log("textContents: ", textContents);
 ```
@@ -128,3 +142,13 @@ git push
 ```
 
 GitHub actions will do the rest job for you.
+
+## License
+
+[Apache-2.0](LICENSE)
+
+Disclaimer: _This is not an officially supported NetApp product._
+
+## Contributing
+
+See [Contributing.md](./CONTRIBUTING.md)
