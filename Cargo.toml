@@ -2,7 +2,7 @@
 authors = ["Tryggvi Larusson <Tryggvi.Larusson@netapp.com>"]
 edition = "2021"
 name = "smb-js"
-version = "0.2.0"
+version = "0.9.0"
 
 [lib]
 crate-type = ["cdylib"]
