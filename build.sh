@@ -82,6 +82,12 @@ if [ "$ARG1" == "test" ]; then
 else
   yarn build-tsc
   yarn build-napi --target ${TARGET_TRIPLE}
+
+  # amend napi generated index.js a bit so that it plays nicer with esbuild
+  for x in `cat index.js | grep -o "smb-js\..*\.node" | sort | uniq`; do
+    cat index.js | sed "s/join(__dirname, '$x')/new URL('$x', import.meta.url)/g" > index.js~
+    mv index.js{~,}
+  done
 fi
 
 if [ "${NODE_OS}" == "darwin" ]; then

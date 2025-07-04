@@ -1,3 +1,4 @@
+"use strict";
 /**
  * Copyright 2025 NetApp Inc. All Rights Reserved.
  *
@@ -15,8 +16,6 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-
-"use strict";
 var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SmbWritableFileStream = exports.SmbFileHandle = exports.SmbDirectoryHandle = exports.SmbHandle = void 0;
