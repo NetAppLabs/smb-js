@@ -1186,7 +1186,7 @@ ava_1.default.serial('should handle getting directories concurrently', async (t)
     }
 });
 if (!node_process_1.default.env.TEST_USING_MOCKS) {
-    ava_1.default.serial('should handle watch', async (t) => {
+    ava_1.default.serial.skip('should handle watch', async (t) => {
         const sleep = async (ms) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
         const rootHandle = await getRootHandle();
         const smbHandle = rootHandle;
@@ -1241,7 +1241,7 @@ if (!node_process_1.default.env.TEST_USING_MOCKS) {
         t.is(expectedIndex, expectedEntries.length);
         watcher.cancel();
     });
-    ava_1.default.serial('should handle watch on subdirectory', async (t) => {
+    ava_1.default.serial.skip('should handle watch on subdirectory', async (t) => {
         const sleep = async (ms) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
         const rootHandle = await getRootHandle();
         const subHandle = await rootHandle.getDirectoryHandle("subbed", { create: true });

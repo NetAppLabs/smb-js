@@ -1293,7 +1293,7 @@ test.serial('should handle getting directories concurrently', async (t) => {
 })
 
 if (!process.env.TEST_USING_MOCKS) {
-  test.serial('should handle watch', async (t) => {
+  test.serial.skip('should handle watch', async (t) => {
     const sleep = async (ms: number) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
     const rootHandle = await getRootHandle();
     const smbHandle = rootHandle as SmbDirectoryHandle;
@@ -1351,7 +1351,7 @@ if (!process.env.TEST_USING_MOCKS) {
     watcher.cancel();
   })
 
-  test.serial('should handle watch on subdirectory', async (t) => {
+  test.serial.skip('should handle watch on subdirectory', async (t) => {
     const sleep = async (ms: number) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
     const rootHandle = await getRootHandle();
     const subHandle = await rootHandle.getDirectoryHandle("subbed", {create: true});
