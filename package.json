@@ -1,6 +1,6 @@
 {
   "name": "@netapplabs/smb-js",
-  "version": "0.9.1",
+  "version": "0.9.2",
   "description": "smb js",
   "main": "indax.js",
   "repository": "git@github.com:NetAppLabs/smb-js.git",
