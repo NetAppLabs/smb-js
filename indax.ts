@@ -26,7 +26,7 @@ import {
   JsSmbDirectoryHandle,
   JsSmbFileHandle,
   JsSmbWritableFileStream,
-} from './index.js';
+} from './index';
 
 type SmbHandlePermissionDescriptor = JsSmbHandlePermissionDescriptor;
 // @ts-ignore
@@ -63,6 +63,7 @@ export class SmbHandle implements FileSystemHandle {
 }
 
 export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectoryHandle {
+  // @ts-ignore
   [Symbol.asyncIterator]: SmbDirectoryHandle['entries'] = this.entries
   declare readonly kind: 'directory'
   private _js: JsSmbDirectoryHandle
@@ -78,26 +79,29 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
     this.getDirectory = this.getDirectoryHandle;
     this.getEntries = this.values;
   }
+  // @ts-ignore
   async *entries(): AsyncIterableIterator<[string, FileSystemDirectoryHandle | FileSystemFileHandle]> {
     for await (const [key, value] of this._js.entries()) {
-      yield [key, value instanceof JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) as FileSystemDirectoryHandle : new SmbFileHandle(value) as FileSystemFileHandle];
+      yield [key, value instanceof JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) as any as FileSystemDirectoryHandle : new SmbFileHandle(value) as FileSystemFileHandle];
     }
   }
+  // @ts-ignore
   async *keys(): AsyncIterableIterator<string> {
     for await (const key of this._js.keys()) {
       yield key;
     }
   }
+  // @ts-ignore
   async *values(): AsyncIterableIterator<FileSystemDirectoryHandle | FileSystemFileHandle> {
     for await (const value of this._js.values()) {
-      yield value instanceof JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) as FileSystemDirectoryHandle : new SmbFileHandle(value) as FileSystemFileHandle;
+      yield value instanceof JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) as any as FileSystemDirectoryHandle : new SmbFileHandle(value) as FileSystemFileHandle;
     }
   }
   async getDirectoryHandle(name: string, options?: FileSystemGetDirectoryOptions): Promise<FileSystemDirectoryHandle> {
     //console.log("getDirectoryHandle: ", name);
     return new Promise(async (resolve, reject) => {
       await this._js.getDirectoryHandle(name, options as JsSmbGetDirectoryOptions)
-        .then((handle) => resolve(new SmbDirectoryHandle(handle) as FileSystemDirectoryHandle))
+        .then((handle) => resolve(new SmbDirectoryHandle(handle) as any as FileSystemDirectoryHandle))
         .catch((reason) => {
           let errMsg: string = reason.message;
           if (errMsg !== undefined) {

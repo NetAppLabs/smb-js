@@ -87,7 +87,25 @@ else
   for x in `cat index.js | grep -o "smb-js\..*\.node" | sort | uniq`; do
     cat index.js | sed "s/join(__dirname, '$x')/new URL('$x', import.meta.url)/g" > index.js~
     mv index.js{~,}
+
+    cat index.js | sed "s/require('.\/$x')/require(new URL('$x', import.meta.url).pathname)/g" > index.js~
+    mv index.js{~,}
   done
+
+  # also remove check for universal binary for darwin, as we know we won't have one
+  cat index.js | grep -v "'smb-js.darwin-universal.node'" > index.js~
+  mv index.js{~,}
+
+  # finally, change way in which things are exported from index.js
+  cat index.js | grep -v 'module.exports.' | sed "s/^const {$/export const {/" > index.js~
+  mv index.js{~,}
+
+  # change indax.js to require index.cjs instead of just index
+  cat indax.js | sed "s/index\"/index.cjs\"/" > indax.js~
+  mv indax.js{~,}
+
+  mv index.js index.cjs
+  mv indax.js indax.cjs
 fi
 
 if [ "${NODE_OS}" == "darwin" ]; then
