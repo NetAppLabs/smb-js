@@ -19,7 +19,7 @@
 import test from 'ava'
 
 import process from 'node:process';
-import { SmbDirectoryHandle, SmbFileHandle } from '../indax.js'
+import { SmbDirectoryHandle, SmbFileHandle } from '../indax';
 
 const smbURL = process.env.SMB_URL || 'smb://127.0.0.1/Users/Shared/smb/';
 //const smbPath = process.env.SMB_PATH;
@@ -30,7 +30,7 @@ let testResolve = false;
 
 async function getRootHandle(): Promise<FileSystemDirectoryHandle> {
   if (!cachedRoot) {
-    cachedRoot = new SmbDirectoryHandle(smbURL);
+    cachedRoot = new SmbDirectoryHandle(smbURL) as any as FileSystemDirectoryHandle;
   }
   //let cachedRoot = new SmbDirectoryHandle(smbURL);
   let subRoot: FileSystemDirectoryHandle  = cachedRoot;
@@ -42,7 +42,7 @@ async function getRootHandle(): Promise<FileSystemDirectoryHandle> {
 
 test.serial('should have correct properties for directory', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('first') as any as SmbDirectoryHandle;
   t.is(dirHandle.kind, 'directory');
   t.is(dirHandle.name, 'first');
 })
@@ -94,21 +94,21 @@ test.serial('should not be same entry as others for file', async (t) => {
 
 test.serial('should be granted read permission when querying on directory', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('first') as any as SmbDirectoryHandle;
   const perm = await dirHandle.queryPermission({mode: 'read'});
   t.is(perm, 'granted');
 })
 
 test.serial('should be granted readwrite permission when querying on directory', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('first') as any as SmbDirectoryHandle;
   const perm = await dirHandle.queryPermission({mode: 'readwrite'});
   t.is(perm, 'granted');
 })
 
 test.serial('should be granted read permission when querying on read-only directory', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('quatre') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('quatre') as any as SmbDirectoryHandle;
   const perm = await dirHandle.queryPermission({mode: 'read'});
   t.is(perm, 'granted');
 })
@@ -116,7 +116,7 @@ test.serial('should be granted read permission when querying on read-only direct
 if (testPermissions) {
   test.serial('should be denied readwrite permission when querying on read-only directory', async (t) => {
     const rootHandle = await getRootHandle();
-    const dirHandle = await rootHandle.getDirectoryHandle('quatre') as SmbDirectoryHandle;
+    const dirHandle = await rootHandle.getDirectoryHandle('quatre') as any as SmbDirectoryHandle;
     const perm = await dirHandle.queryPermission({mode: 'readwrite'});
     t.is(perm, 'denied');
   })
@@ -131,8 +131,8 @@ if (testPermissions) {
     const count = process.env.TEST_USING_MOCKS ? 1000 : 10;
     const rootHandle = await getRootHandle();
     const [first, quatre] = await Promise.all([
-      rootHandle.getDirectoryHandle('first') as Promise<SmbDirectoryHandle>,
-      rootHandle.getDirectoryHandle('quatre') as Promise<SmbDirectoryHandle>,
+      rootHandle.getDirectoryHandle('first') as any as Promise<SmbDirectoryHandle>,
+      rootHandle.getDirectoryHandle('quatre') as any as Promise<SmbDirectoryHandle>,
     ]);
     for (let i = 0; i < count; i++) {
       const [firstPerm, quatrePerm] = await Promise.all([
@@ -147,14 +147,14 @@ if (testPermissions) {
 
 test.serial('should be granted read permission when requesting on directory', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('first') as any as SmbDirectoryHandle;
   const perm = await dirHandle.requestPermission({mode: 'read'});
   t.is(perm, 'granted');
 })
 
 test.serial('should be granted readwrite permission when requesting on directory', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('first') as any as SmbDirectoryHandle;
   const perm = await dirHandle.requestPermission({mode: 'readwrite'});
   t.is(perm, 'granted');
 })
@@ -222,7 +222,7 @@ test.serial('should iterate through directory', async (t) => {
 
 test.serial('should iterate through subdirectory', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('first') as any as SmbDirectoryHandle;
   const expectedEntries = [
     {key: 'comment', value: {kind: 'file', name: 'comment'}},
   ];
@@ -242,8 +242,8 @@ test.serial('should iterate through subdirectory', async (t) => {
 
 test.serial('should iterate through subsubdirectory', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first') as SmbDirectoryHandle;
-  const subdirHandle = await dirHandle.getDirectoryHandle('place', {create: true}) as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('first') as any as SmbDirectoryHandle;
+  const subdirHandle = await dirHandle.getDirectoryHandle('place', {create: true}) as any as SmbDirectoryHandle;
   const expectedEntries = [];
   let i = 0;
   for await (const [ _key, _value ] of subdirHandle) {
@@ -285,7 +285,7 @@ test.serial('should iterate through entries', async (t) => {
 
 test.serial('should iterate through subdirectory entries', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('quatre') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('quatre') as any as SmbDirectoryHandle;
   const expectedEntries = [
     {key: 'points', value: {kind: 'file', name: 'points'}},
   ];
@@ -320,7 +320,7 @@ test.serial('should iterate through keys', async (t) => {
 
 test.serial('should iterate through subdirectory keys', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('quatre') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('quatre') as any as SmbDirectoryHandle;
   const expectedKeys = ['points'];
   let i = 0;
   for await (const key of dirHandle.keys()) {
@@ -360,7 +360,7 @@ test.serial('should iterate through values', async (t) => {
 
 test.serial('should iterate through subdirectory values', async (t) => {
   const rootHandle = await getRootHandle();
-  const dirHandle = await rootHandle.getDirectoryHandle('first') as SmbDirectoryHandle;
+  const dirHandle = await rootHandle.getDirectoryHandle('first') as any as SmbDirectoryHandle;
   const expectedValues = [
     {kind: 'file', name: 'comment'},
   ];
@@ -1296,7 +1296,7 @@ if (!process.env.TEST_USING_MOCKS) {
   test.serial.skip('should handle watch', async (t) => {
     const sleep = async (ms: number) => { return new Promise((resolve) => setTimeout(resolve, ms)); };
     const rootHandle = await getRootHandle();
-    const smbHandle = rootHandle as SmbDirectoryHandle;
+    const smbHandle = rootHandle as any as SmbDirectoryHandle;
     const caught: {path: string, action: string}[] = [];
     const watcher = smbHandle.watch(async (watchEvent) => {
       caught.push(watchEvent);
@@ -1356,7 +1356,7 @@ if (!process.env.TEST_USING_MOCKS) {
     const rootHandle = await getRootHandle();
     const subHandle = await rootHandle.getDirectoryHandle("subbed", {create: true});
     const subSubHandle = await subHandle.getDirectoryHandle("sub", {create: true});
-    const smbHandle = subHandle as SmbDirectoryHandle;
+    const smbHandle = subHandle as any as SmbDirectoryHandle;
     const caught: {path: string, action: string}[] = [];
     const watcher = smbHandle.watch(async (watchEvent) => {
       caught.push(watchEvent);

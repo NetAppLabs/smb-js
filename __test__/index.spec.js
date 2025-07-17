@@ -22,7 +22,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 Object.defineProperty(exports, "__esModule", { value: true });
 const ava_1 = __importDefault(require("ava"));
 const node_process_1 = __importDefault(require("node:process"));
-const indax_js_1 = require("../indax.js");
+const indax_1 = require("../indax");
 const smbURL = node_process_1.default.env.SMB_URL || 'smb://127.0.0.1/Users/Shared/smb/';
 //const smbPath = process.env.SMB_PATH;
 let cachedRoot;
@@ -30,7 +30,7 @@ let testPermissions = false;
 let testResolve = false;
 async function getRootHandle() {
     if (!cachedRoot) {
-        cachedRoot = new indax_js_1.SmbDirectoryHandle(smbURL);
+        cachedRoot = new indax_1.SmbDirectoryHandle(smbURL);
     }
     //let cachedRoot = new SmbDirectoryHandle(smbURL);
     let subRoot = cachedRoot;

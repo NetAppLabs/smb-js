@@ -35,7 +35,7 @@ switch (platform) {
         localFileExisted = existsSync(new URL('smb-js.android-arm64.node', import.meta.url))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./smb-js.android-arm64.node')
+            nativeBinding = require(new URL('smb-js.android-arm64.node', import.meta.url).pathname)
           } else {
             nativeBinding = require('@netapplabs/smb-js-android-arm64')
           }
@@ -47,7 +47,7 @@ switch (platform) {
         localFileExisted = existsSync(new URL('smb-js.android-arm-eabi.node', import.meta.url))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./smb-js.android-arm-eabi.node')
+            nativeBinding = require(new URL('smb-js.android-arm-eabi.node', import.meta.url).pathname)
           } else {
             nativeBinding = require('@netapplabs/smb-js-android-arm-eabi')
           }
@@ -65,7 +65,7 @@ switch (platform) {
         localFileExisted = existsSync(new URL('smb-js.win32-x64-msvc.node', import.meta.url))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./smb-js.win32-x64-msvc.node')
+            nativeBinding = require(new URL('smb-js.win32-x64-msvc.node', import.meta.url).pathname)
           } else {
             nativeBinding = require('@netapplabs/smb-js-win32-x64-msvc')
           }
@@ -77,7 +77,7 @@ switch (platform) {
         localFileExisted = existsSync(new URL('smb-js.win32-ia32-msvc.node', import.meta.url))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./smb-js.win32-ia32-msvc.node')
+            nativeBinding = require(new URL('smb-js.win32-ia32-msvc.node', import.meta.url).pathname)
           } else {
             nativeBinding = require('@netapplabs/smb-js-win32-ia32-msvc')
           }
@@ -89,7 +89,7 @@ switch (platform) {
         localFileExisted = existsSync(new URL('smb-js.win32-arm64-msvc.node', import.meta.url))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./smb-js.win32-arm64-msvc.node')
+            nativeBinding = require(new URL('smb-js.win32-arm64-msvc.node', import.meta.url).pathname)
           } else {
             nativeBinding = require('@netapplabs/smb-js-win32-arm64-msvc')
           }
@@ -102,10 +102,8 @@ switch (platform) {
     }
     break
   case 'darwin':
-    localFileExisted = existsSync(new URL('smb-js.darwin-universal.node', import.meta.url))
     try {
       if (localFileExisted) {
-        nativeBinding = require('./smb-js.darwin-universal.node')
       } else {
         nativeBinding = require('@netapplabs/smb-js-darwin-universal')
       }
@@ -116,7 +114,7 @@ switch (platform) {
         localFileExisted = existsSync(new URL('smb-js.darwin-x64.node', import.meta.url))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./smb-js.darwin-x64.node')
+            nativeBinding = require(new URL('smb-js.darwin-x64.node', import.meta.url).pathname)
           } else {
             nativeBinding = require('@netapplabs/smb-js-darwin-x64')
           }
@@ -128,7 +126,7 @@ switch (platform) {
         localFileExisted = existsSync(new URL('smb-js.darwin-arm64.node', import.meta.url))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./smb-js.darwin-arm64.node')
+            nativeBinding = require(new URL('smb-js.darwin-arm64.node', import.meta.url).pathname)
           } else {
             nativeBinding = require('@netapplabs/smb-js-darwin-arm64')
           }
@@ -147,7 +145,7 @@ switch (platform) {
     localFileExisted = existsSync(new URL('smb-js.freebsd-x64.node', import.meta.url))
     try {
       if (localFileExisted) {
-        nativeBinding = require('./smb-js.freebsd-x64.node')
+        nativeBinding = require(new URL('smb-js.freebsd-x64.node', import.meta.url).pathname)
       } else {
         nativeBinding = require('@netapplabs/smb-js-freebsd-x64')
       }
@@ -162,7 +160,7 @@ switch (platform) {
           localFileExisted = existsSync(new URL('smb-js.linux-x64-musl.node', import.meta.url))
           try {
             if (localFileExisted) {
-              nativeBinding = require('./smb-js.linux-x64-musl.node')
+              nativeBinding = require(new URL('smb-js.linux-x64-musl.node', import.meta.url).pathname)
             } else {
               nativeBinding = require('@netapplabs/smb-js-linux-x64-musl')
             }
@@ -173,7 +171,7 @@ switch (platform) {
           localFileExisted = existsSync(new URL('smb-js.linux-x64-gnu.node', import.meta.url))
           try {
             if (localFileExisted) {
-              nativeBinding = require('./smb-js.linux-x64-gnu.node')
+              nativeBinding = require(new URL('smb-js.linux-x64-gnu.node', import.meta.url).pathname)
             } else {
               nativeBinding = require('@netapplabs/smb-js-linux-x64-gnu')
             }
@@ -187,7 +185,7 @@ switch (platform) {
           localFileExisted = existsSync(new URL('smb-js.linux-arm64-musl.node', import.meta.url))
           try {
             if (localFileExisted) {
-              nativeBinding = require('./smb-js.linux-arm64-musl.node')
+              nativeBinding = require(new URL('smb-js.linux-arm64-musl.node', import.meta.url).pathname)
             } else {
               nativeBinding = require('@netapplabs/smb-js-linux-arm64-musl')
             }
@@ -198,7 +196,7 @@ switch (platform) {
           localFileExisted = existsSync(new URL('smb-js.linux-arm64-gnu.node', import.meta.url))
           try {
             if (localFileExisted) {
-              nativeBinding = require('./smb-js.linux-arm64-gnu.node')
+              nativeBinding = require(new URL('smb-js.linux-arm64-gnu.node', import.meta.url).pathname)
             } else {
               nativeBinding = require('@netapplabs/smb-js-linux-arm64-gnu')
             }
@@ -212,7 +210,7 @@ switch (platform) {
           localFileExisted = existsSync(new URL('smb-js.linux-arm-musleabihf.node', import.meta.url))
           try {
             if (localFileExisted) {
-              nativeBinding = require('./smb-js.linux-arm-musleabihf.node')
+              nativeBinding = require(new URL('smb-js.linux-arm-musleabihf.node', import.meta.url).pathname)
             } else {
               nativeBinding = require('@netapplabs/smb-js-linux-arm-musleabihf')
             }
@@ -223,7 +221,7 @@ switch (platform) {
           localFileExisted = existsSync(new URL('smb-js.linux-arm-gnueabihf.node', import.meta.url))
           try {
             if (localFileExisted) {
-              nativeBinding = require('./smb-js.linux-arm-gnueabihf.node')
+              nativeBinding = require(new URL('smb-js.linux-arm-gnueabihf.node', import.meta.url).pathname)
             } else {
               nativeBinding = require('@netapplabs/smb-js-linux-arm-gnueabihf')
             }
@@ -237,7 +235,7 @@ switch (platform) {
           localFileExisted = existsSync(new URL('smb-js.linux-riscv64-musl.node', import.meta.url))
           try {
             if (localFileExisted) {
-              nativeBinding = require('./smb-js.linux-riscv64-musl.node')
+              nativeBinding = require(new URL('smb-js.linux-riscv64-musl.node', import.meta.url).pathname)
             } else {
               nativeBinding = require('@netapplabs/smb-js-linux-riscv64-musl')
             }
@@ -248,7 +246,7 @@ switch (platform) {
           localFileExisted = existsSync(new URL('smb-js.linux-riscv64-gnu.node', import.meta.url))
           try {
             if (localFileExisted) {
-              nativeBinding = require('./smb-js.linux-riscv64-gnu.node')
+              nativeBinding = require(new URL('smb-js.linux-riscv64-gnu.node', import.meta.url).pathname)
             } else {
               nativeBinding = require('@netapplabs/smb-js-linux-riscv64-gnu')
             }
@@ -261,7 +259,7 @@ switch (platform) {
         localFileExisted = existsSync(new URL('smb-js.linux-s390x-gnu.node', import.meta.url))
         try {
           if (localFileExisted) {
-            nativeBinding = require('./smb-js.linux-s390x-gnu.node')
+            nativeBinding = require(new URL('smb-js.linux-s390x-gnu.node', import.meta.url).pathname)
           } else {
             nativeBinding = require('@netapplabs/smb-js-linux-s390x-gnu')
           }
@@ -284,7 +282,7 @@ if (!nativeBinding) {
   throw new Error(`Failed to load native binding`)
 }
 
-const {
+export const {
   JsSmbDirectoryHandleEntries,
   JsSmbDirectoryHandleKeys,
   JsSmbDirectoryHandleValues,
@@ -298,14 +296,3 @@ const {
   JsSmbWritableStreamSink,
 } = nativeBinding
 
-module.exports.JsSmbDirectoryHandleEntries = JsSmbDirectoryHandleEntries
-module.exports.JsSmbDirectoryHandleKeys = JsSmbDirectoryHandleKeys
-module.exports.JsSmbDirectoryHandleValues = JsSmbDirectoryHandleValues
-module.exports.JsSmbHandle = JsSmbHandle
-module.exports.JsSmbDirectoryHandle = JsSmbDirectoryHandle
-module.exports.Cancellable = Cancellable
-module.exports.JsSmbFileHandle = JsSmbFileHandle
-module.exports.JsSmbFile = JsSmbFile
-module.exports.JsSmbReadableStreamSource = JsSmbReadableStreamSource
-module.exports.JsSmbWritableFileStream = JsSmbWritableFileStream
-module.exports.JsSmbWritableStreamSink = JsSmbWritableStreamSink
