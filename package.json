@@ -1,8 +1,9 @@
 {
   "name": "@netapplabs/smb-js",
   "version": "0.9.2",
+  "type": "commonjs",
   "description": "smb js",
-  "main": "indax.js",
+  "main": "indax.cjs",
   "repository": "git@github.com:NetAppLabs/smb-js.git",
   "license": "Apache-2.0",
   "keywords": [
@@ -16,7 +17,7 @@
   "files": [
     "indax.ts",
     "index.d.ts",
-    "index.js",
+    "index.cjs",
     "*.node",
     "lib"
   ],

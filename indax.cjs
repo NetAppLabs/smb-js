@@ -16,11 +16,13 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-var _a;
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.SmbWritableFileStream = exports.SmbFileHandle = exports.SmbDirectoryHandle = exports.SmbHandle = void 0;
-const index_js_1 = require("./index.js");
+const index_1 = require("./index.cjs");
 class SmbHandle {
+    _jsh;
+    kind;
+    name;
     constructor(_jsh) {
         this._jsh = _jsh;
         this.kind = _jsh.kind;
@@ -45,30 +47,35 @@ class SmbHandle {
 }
 exports.SmbHandle = SmbHandle;
 class SmbDirectoryHandle extends SmbHandle {
+    // @ts-ignore
+    [Symbol.asyncIterator] = this.entries;
+    _js;
     constructor(param) {
         const [url, toWrap] = typeof param === 'string' ? [param] : ['', param];
-        const _js = toWrap || new index_js_1.JsSmbDirectoryHandle(url);
+        const _js = toWrap || new index_1.JsSmbDirectoryHandle(url);
         super(_js.toHandle());
-        this[_a] = this.entries;
         this[Symbol.asyncIterator] = this.entries;
         this._js = _js;
         this.getFile = this.getFileHandle;
         this.getDirectory = this.getDirectoryHandle;
         this.getEntries = this.values;
     }
+    // @ts-ignore
     async *entries() {
         for await (const [key, value] of this._js.entries()) {
-            yield [key, value instanceof index_js_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value)];
+            yield [key, value instanceof index_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value)];
         }
     }
+    // @ts-ignore
     async *keys() {
         for await (const key of this._js.keys()) {
             yield key;
         }
     }
+    // @ts-ignore
     async *values() {
         for await (const value of this._js.values()) {
-            yield value instanceof index_js_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value);
+            yield value instanceof index_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value);
         }
     }
     async getDirectoryHandle(name, options) {
@@ -114,13 +121,25 @@ class SmbDirectoryHandle extends SmbHandle {
     async resolve(possibleDescendant) {
         return this._js.resolve(possibleDescendant._jsh || possibleDescendant);
     }
+    /**
+     * @deprecated Old property just for Chromium <=85. Use `.getFileHandle()` in the new API.
+     */
+    getFile;
+    /**
+    * @deprecated Old property just for Chromium <=85. Use `.getDirectoryHandle()` in the new API.
+    */
+    getDirectory;
+    /**
+    * @deprecated Old property just for Chromium <=85. Use `.keys()`, `.values()`, `.entries()`, or the directory itself as an async iterable in the new API.
+    */
+    getEntries;
     watch(callback) {
         return this._js.watch(callback);
     }
 }
 exports.SmbDirectoryHandle = SmbDirectoryHandle;
-_a = Symbol.asyncIterator;
 class SmbFileHandle extends SmbHandle {
+    _js;
     constructor(_js) {
         super(_js.toHandle());
         this._js = _js;
@@ -142,6 +161,8 @@ class SmbFileHandle extends SmbHandle {
 }
 exports.SmbFileHandle = SmbFileHandle;
 class SmbWritableFileStream {
+    _js;
+    locked;
     constructor(_js) {
         this._js = _js;
         this.locked = _js.locked;
