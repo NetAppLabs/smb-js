@@ -180,10 +180,12 @@ pub struct DirEntry {
     pub atime: u64,
     pub mtime: u64,
     pub ctime: u64,
+    pub btime: u64,
     pub nlink: u32,
     pub atime_nsec: u64,
     pub mtime_nsec: u64,
     pub ctime_nsec: u64,
+    pub btime_nsec: u64,
 }
 
 #[derive(Clone)]
@@ -1126,10 +1128,12 @@ impl Iterator for SmbDirectory {
                 atime: (stat).smb2_atime,
                 mtime: (stat).smb2_mtime,
                 ctime: (stat).smb2_ctime,
+                btime: (stat).smb2_btime,
                 nlink: (stat).smb2_nlink,
                 atime_nsec: (stat).smb2_atime_nsec,
                 mtime_nsec: (stat).smb2_mtime_nsec,
                 ctime_nsec: (stat).smb2_ctime_nsec,
+                btime_nsec: (stat).smb2_btime_nsec,
             }))
         }
     }

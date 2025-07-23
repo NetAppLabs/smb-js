@@ -22,12 +22,14 @@ import {
   JsSmbGetFileOptions,
   JsSmbRemoveOptions,
   JsSmbCreateWritableOptions,
+  JsSmbStat,
   JsSmbHandle,
   JsSmbDirectoryHandle,
   JsSmbFileHandle,
   JsSmbWritableFileStream,
 } from './index';
 
+type SmbStat = JsSmbStat;
 type SmbHandlePermissionDescriptor = JsSmbHandlePermissionDescriptor;
 // @ts-ignore
 type SmbCreateWritableOptions = FileSystemCreateWritableOptions;
@@ -59,6 +61,9 @@ export class SmbHandle implements FileSystemHandle {
   }
   async requestPermission(perm: SmbHandlePermissionDescriptor): Promise<PermissionState> {
     return this._jsh.requestPermission(perm) as Promise<PermissionState>;
+  }
+  async stat(): Promise<SmbStat> {
+    return this._jsh.stat() as Promise<SmbStat>;
   }
 }
 

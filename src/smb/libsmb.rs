@@ -113,9 +113,11 @@ impl VFS for SMBConnection {
             atime: res.smb2_atime,
             mtime: res.smb2_mtime,
             ctime: res.smb2_ctime,
+            btime: res.smb2_btime,
             atime_nsec: res.smb2_atime_nsec,
             mtime_nsec: res.smb2_mtime_nsec,
             ctime_nsec: res.smb2_ctime_nsec,
+            btime_nsec: res.smb2_btime_nsec,
         })
     }
 
@@ -288,10 +290,12 @@ impl Iterator for SMBDirectory2 {
             atime: Time{seconds: entry.atime as u32, nseconds: entry.atime_nsec},
             mtime: Time{seconds: entry.mtime as u32, nseconds: entry.mtime_nsec},
             ctime: Time{seconds: entry.ctime as u32, nseconds: entry.ctime_nsec},
+            btime: Time{seconds: entry.btime as u32, nseconds: entry.btime_nsec},
             nlink: entry.nlink,
             atime_nsec: entry.atime_nsec,
             mtime_nsec: entry.mtime_nsec,
             ctime_nsec: entry.ctime_nsec,
+            btime_nsec: entry.btime_nsec,
         }))
     }
 }
@@ -315,9 +319,11 @@ impl VFSFile for SMBFile2 {
             atime: res.smb2_atime,
             mtime: res.smb2_mtime,
             ctime: res.smb2_ctime,
+            btime: res.smb2_btime,
             atime_nsec: res.smb2_atime_nsec,
             mtime_nsec: res.smb2_mtime_nsec,
             ctime_nsec: res.smb2_ctime_nsec,
+            btime_nsec: res.smb2_btime_nsec,
         })
     }
 

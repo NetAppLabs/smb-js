@@ -130,16 +130,18 @@ impl From<u32> for VFSEntryType {
 #[derive(Debug, Clone)]
 pub struct VFSDirEntry {
     pub path: String,
-    pub inode: u64,
     pub d_type: VFSEntryType,
+    pub inode: u64,
+    pub nlink: u32,
     pub size: u64,
     pub atime: Time,
     pub mtime: Time,
     pub ctime: Time,
-    pub nlink: u32,
+    pub btime: Time,
     pub atime_nsec: u64,
     pub mtime_nsec: u64,
     pub ctime_nsec: u64,
+    pub btime_nsec: u64,
 }
 
 #[allow(dead_code)]
@@ -151,9 +153,11 @@ pub struct VFSStat {
   pub atime: u64,
   pub mtime: u64,
   pub ctime: u64,
+  pub btime: u64,
   pub atime_nsec: u64,
   pub mtime_nsec: u64,
   pub ctime_nsec: u64,
+  pub btime_nsec: u64,
 }
 
 pub(crate) fn connect(url: String) -> Result<Box<dyn VFS>> {

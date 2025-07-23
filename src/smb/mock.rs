@@ -51,6 +51,7 @@ pub(super) struct SMBConnection {
 impl SMBConnection {
     pub(super) fn connect(_url: String) -> Result<Box<dyn VFS>> {
         let mut mocks = Mocks{dirs: BTreeSet::new(), files: BTreeMap::new()};
+        let _ = mocks.dirs.insert("/".into());
         let _ = mocks.dirs.insert("/first/".into());
         let _ = mocks.dirs.insert("/quatre/".into());
         let _ = mocks.files.insert("/3".into(), Vec::new());
@@ -77,6 +78,9 @@ impl VFS for SMBConnection {
         let size = if let Some(c) = mocks.files.get(&path.to_string()) {
             Some(c.len() as u64)
         } else {
+            if !mocks.dirs.contains(&path.to_string()) {
+                return Err(Error::new(std::io::ErrorKind::Other, "entry not found"));
+            }
             None
         };
         /*let mode = if size.is_some() {
@@ -92,9 +96,11 @@ impl VFS for SMBConnection {
             atime: 1658159058723,
             mtime: 1658159058723,
             ctime: 1658159058720,
+            btime: 1658159058718,
             atime_nsec: Default::default(),
             mtime_nsec: Default::default(),
             ctime_nsec: Default::default(),
+            btime_nsec: Default::default(),
         })
     }
 
@@ -189,10 +195,12 @@ impl Iterator for SMBSDirectory2 {
                         atime: Time{seconds: 1658159058, nseconds: 0},
                         mtime: Time{seconds: 1658159058, nseconds: 0},
                         ctime: Time{seconds: 1658159055, nseconds: 0},
+                        btime: Time{seconds: 1658159053, nseconds: 0},
                         nlink: Default::default(),
                         atime_nsec: Default::default(),
                         mtime_nsec: Default::default(),
                         ctime_nsec: Default::default(),
+                        btime_nsec: Default::default(),
                     });
                 }
             }
@@ -208,10 +216,12 @@ impl Iterator for SMBSDirectory2 {
                         atime: Time{seconds: 1658159058, nseconds: 0},
                         mtime: Time{seconds: 1658159058, nseconds: 0},
                         ctime: Time{seconds: 1658159055, nseconds: 0},
+                        btime: Time{seconds: 1658159053, nseconds: 0},
                         nlink: Default::default(),
                         atime_nsec: Default::default(),
                         mtime_nsec: Default::default(),
                         ctime_nsec: Default::default(),
+                        btime_nsec: Default::default(),
                     });
                 }
             }
@@ -254,9 +264,11 @@ impl VFSFile for SMBFile2 {
             atime: 1658159058723,
             mtime: 1658159058723,
             ctime: 1658159058720,
+            btime: 1658159058718,
             atime_nsec: Default::default(),
             mtime_nsec: Default::default(),
             ctime_nsec: Default::default(),
+            btime_nsec: Default::default(),
         })
     }
 
