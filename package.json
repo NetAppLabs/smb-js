@@ -1,6 +1,6 @@
 {
   "name": "@netapplabs/smb-js",
-  "version": "0.9.5",
+  "version": "0.9.6",
   "type": "commonjs",
   "description": "smb js",
   "main": "indax.cjs",
