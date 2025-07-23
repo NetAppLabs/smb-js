@@ -89,7 +89,7 @@ class SmbDirectoryHandle extends SmbHandle {
                     if (errMsg == 'The path supplied exists, but was not an entry of requested type.') {
                         reason.name = 'TypeMismatchError';
                     }
-                    else if (errMsg.indexOf('not found') != -1) {
+                    else if (errMsg.indexOf('not found') != -1 || errMsg.indexOf('ENOENT') != -1) {
                         reason.name = 'NotFoundError';
                     }
                 }
@@ -107,7 +107,7 @@ class SmbDirectoryHandle extends SmbHandle {
                     if (errMsg == 'The path supplied exists, but was not an entry of requested type.') {
                         reason.name = 'TypeMismatchError';
                     }
-                    else if (errMsg.indexOf('not found') != -1) {
+                    else if (errMsg.indexOf('not found') != -1 || errMsg.indexOf('ENOENT') != -1) {
                         reason.name = 'NotFoundError';
                     }
                 }
@@ -149,13 +149,35 @@ class SmbFileHandle extends SmbHandle {
         throw Error('createSyncAccessHandle not implemented');
     }
     async getFile() {
-        return this._js.getFile();
+        return new Promise(async (resolve, reject) => {
+            await this._js.getFile()
+                .then((file) => resolve(file))
+                .catch((reason) => {
+                let errMsg = reason.message;
+                if (errMsg !== undefined) {
+                    if (errMsg.indexOf('not found') != -1 || errMsg.indexOf('ENOENT') != -1) {
+                        reason.message = `File "${this.name}" not found`;
+                        reason.name = 'NotFoundError';
+                    }
+                }
+                reject(reason);
+            });
+        });
     }
     async createWritable(options) {
         return new Promise(async (resolve, reject) => {
             await this._js.createWritable(options)
                 .then((stream) => resolve(new SmbWritableFileStream(stream)))
-                .catch((reason) => reject(reason));
+                .catch((reason) => {
+                let errMsg = reason.message;
+                if (errMsg !== undefined) {
+                    if (errMsg.indexOf('not found') != -1 || errMsg.indexOf('ENOENT') != -1) {
+                        reason.message = `File "${this.name}" not found`;
+                        reason.name = 'NotFoundError';
+                    }
+                }
+                reject(reason);
+            });
         });
     }
 }

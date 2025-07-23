@@ -123,8 +123,13 @@ fn check_mut_ptr<T>(ptr: *mut T) -> Result<*mut T> {
 fn check_retcode(ctx: *mut smb2_context, code: i32) -> Result<()> {
     if code < 0 {
         unsafe {
-            let err_str = smb2_get_error(ctx);
-            let e = CStr::from_ptr(err_str).to_string_lossy().into_owned();
+            let err_ptr = smb2_get_error(ctx);
+            let err_str = CStr::from_ptr(err_ptr).to_string_lossy().into_owned();
+            let e = if !err_str.is_empty() {
+                err_str
+            } else {
+                nix::errno::Errno::from_raw(-code).to_string()
+            };
             Err(Error::new(ErrorKind::Other, e))
         }
     } else {
