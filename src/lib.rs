@@ -766,6 +766,9 @@ impl JsSmbFileHandle {
   #[napi]
   pub async fn create_writable(&self, #[napi(ts_arg_type="JsSmbCreateWritableOptions")] options: Option<JsSmbCreateWritableOptions>) -> Result<JsSmbWritableFileStream> {
     let position = (!options.unwrap_or_default().keep_existing_data).then(|| 0);
+    let smb = &self.handle.smb;
+    let my_smb = using_rwlock!(smb);
+    let _ = my_smb.stat(self.handle.path.as_str())?; // XXX: stat file so that we get error if file no longer exists
     Ok(JsSmbWritableFileStream{handle: self.handle.clone(), position, locked: false})
   }
 }
