@@ -26,6 +26,8 @@ use std::{path::Path, sync::{mpsc::{channel, Receiver, Sender}, Arc, RwLock, RwL
 mod smb;
 use smb::{VFSEntryType, VFSFileNotificationOperation, VFSNotifyChangeCallback, VFSWatchMode, VFS};
 
+use crate::smb::VFSStat;
+
 /*
 
 See https://wicg.github.io/file-system-access/
@@ -334,6 +336,32 @@ impl Default for JsSmbCreateWritableOptions {
   }
 }
 
+#[napi(object)]
+pub struct JsSmbStat {
+  #[napi(readonly, ts_type="bigint")]
+  pub inode: Option<i64>,
+  #[napi(readonly, ts_type="bigint")]
+  pub size: i64,
+  #[napi(readonly, ts_type="bigint")]
+  pub creation_time: i64,
+  #[napi(readonly, ts_type="bigint")]
+  pub modified_time: i64,
+  #[napi(readonly, ts_type="bigint")]
+  pub accessed_time: i64
+}
+
+impl From<VFSStat> for JsSmbStat {
+  fn from(value: VFSStat) -> Self {
+    JsSmbStat {
+      inode: (value.ino != 0).then_some(value.ino as i64),
+      size: value.size as i64,
+      creation_time: ((value.btime * 1_000_000_000) + value.btime_nsec) as i64,
+      modified_time: ((value.mtime * 1_000_000_000) + value.mtime_nsec) as i64,
+      accessed_time: ((value.atime * 1_000_000_000) + value.atime_nsec) as i64,
+    }
+  }
+}
+
 #[derive(Clone)]
 #[napi]
 pub struct JsSmbHandle {
@@ -411,6 +439,14 @@ impl JsSmbHandle {
       }
     }*/
     self.query_permission(perm).await
+  }
+
+  #[napi]
+  pub async fn stat(&self) -> Result<JsSmbStat> {
+    let smb = &self.smb;
+    let my_smb = using_rwlock!(smb);
+    let smb_stat = my_smb.stat(&self.path)?;
+    Ok(smb_stat.into())
   }
 }
 
@@ -760,7 +796,7 @@ impl JsSmbFileHandle {
     let smb = &self.handle.smb;
     let my_smb = using_rwlock!(smb);
     let smb_stat = my_smb.stat(self.handle.path.as_str())?;
-    Ok(JsSmbFile{handle: self.handle.clone(), size: smb_stat.size as i64, type_, last_modified: (smb_stat.mtime * 1000) as i64, name: self.name.clone()})
+    Ok(JsSmbFile{handle: self.handle.clone(), size: smb_stat.size as i64, type_, last_modified: ((smb_stat.mtime * 1000) + (smb_stat.mtime_nsec / 1000000)) as i64, name: self.name.clone()})
   }
 
   #[napi]

@@ -511,6 +511,13 @@ if (testResolve) {
         }
     });
 }
+ava_1.default.serial('should return error when getting file for deleted file handle', async (t) => {
+    const rootHandle = await getRootHandle();
+    const fileHandle = await rootHandle.getFileHandle('transient', { create: true });
+    await rootHandle.removeEntry(fileHandle.name);
+    const err = await t.throwsAsync(fileHandle.getFile());
+    t.is(err?.message, 'File "transient" not found');
+});
 ava_1.default.serial('should return file for file handle', async (t) => {
     const rootHandle = await getRootHandle();
     const fileHandle = await rootHandle.getFileHandle('annar');
@@ -567,6 +574,13 @@ ava_1.default.serial('should return stream for file', async (t) => {
     t.is(String.fromCharCode.apply(null, x.value?.valueOf()), 'In order to make sure that this file is exactly 123 bytes in size, I have written this text while watching its chars count.');
     const y = await reader.read();
     t.true(y.done);
+});
+ava_1.default.serial('should return error when creating writable for deleted file handle', async (t) => {
+    const rootHandle = await getRootHandle();
+    const fileHandle = await rootHandle.getFileHandle('fleeting', { create: true });
+    await rootHandle.removeEntry(fileHandle.name);
+    const err = await t.throwsAsync(fileHandle.createWritable());
+    t.is(err?.message, 'File "fleeting" not found');
 });
 ava_1.default.serial('should succeed when streaming file larger than max_read_size', async (t) => {
     const rootHandle = await getRootHandle();
@@ -1184,6 +1198,62 @@ ava_1.default.serial('should handle getting directories concurrently', async (t)
         t.is(quatre.kind, 'directory');
         t.is(quatre.name, 'quatre');
     }
+});
+ava_1.default.serial('should handle getting stats for a directory', async (t) => {
+    const rootHandle = await getRootHandle();
+    const rootStats = await rootHandle.stat();
+    t.assert(rootStats, 'root dir stats not returned');
+    if (!node_process_1.default.env.TEST_USING_MOCKS) {
+        t.assert(rootStats.inode, 'root dir stats do not include inode');
+        t.not(rootStats.creationTime, 0);
+    }
+    else {
+        t.assert(!rootStats.inode, 'root dir stats include indode');
+    }
+    t.assert(rootStats.modifiedTime >= rootStats.creationTime, `root dir stats have creation time greater than modified time: ${JSON.stringify(rootStats)}`);
+    t.assert(rootStats.accessedTime >= rootStats.creationTime, `root dir stats have creation time greater than accessed time: ${JSON.stringify(rootStats)}`);
+    const dirHandle = await rootHandle.getDirectoryHandle('subdir-for-statting', { create: true });
+    const dirStats = await dirHandle.stat();
+    t.assert(dirStats, 'subdir stats not returned');
+    if (!node_process_1.default.env.TEST_USING_MOCKS) {
+        t.assert(dirStats.inode, 'subdir stats do not include inode');
+        t.not(dirStats.creationTime, 0);
+    }
+    else {
+        t.assert(!dirStats.inode, 'subdir stats include indode');
+    }
+    t.not(dirStats.creationTime, 0);
+    t.assert(dirStats.modifiedTime >= dirStats.creationTime, `subdir stats have creation time greater than modified time: ${JSON.stringify(dirStats)}`);
+    t.assert(dirStats.accessedTime >= dirStats.creationTime, `subdir stats have creation time greater than accessed time: ${JSON.stringify(dirStats)}`);
+});
+ava_1.default.serial('should handle getting stats for a file', async (t) => {
+    const rootHandle = await getRootHandle();
+    const dirHandle = await rootHandle.getDirectoryHandle('first');
+    const dirStats = await dirHandle.stat();
+    t.assert(dirStats, 'dir stats not returned');
+    if (!node_process_1.default.env.TEST_USING_MOCKS) {
+        t.assert(dirStats.inode, 'dir stats do not include inode');
+        t.not(dirStats.creationTime, 0);
+    }
+    else {
+        t.assert(!dirStats.inode, 'dir stats include indode');
+    }
+    t.not(dirStats.creationTime, 0);
+    t.assert(dirStats.modifiedTime >= dirStats.creationTime, `dir stats have creation time greater than modified time: ${JSON.stringify(dirStats)}`);
+    t.assert(dirStats.accessedTime >= dirStats.creationTime, `dir stats have creation time greater than accessed time: ${JSON.stringify(dirStats)}`);
+    const fileHandle = await rootHandle.getFileHandle('annar');
+    const fileStats = await fileHandle.stat();
+    t.assert(fileStats, 'file stats not returned');
+    if (!node_process_1.default.env.TEST_USING_MOCKS) {
+        t.assert(fileStats.inode, 'file stats do not include inode');
+        t.not(fileStats.creationTime, 0);
+    }
+    else {
+        t.assert(!fileStats.inode, 'file stats include indode');
+    }
+    t.not(fileStats.creationTime, 0);
+    t.assert(fileStats.modifiedTime >= fileStats.creationTime, `file stats have creation time greater than modified time: ${JSON.stringify(fileStats)}`);
+    t.assert(fileStats.accessedTime >= fileStats.creationTime, `file stats have creation time greater than accessed time: ${JSON.stringify(fileStats)}`);
 });
 if (!node_process_1.default.env.TEST_USING_MOCKS) {
     ava_1.default.serial.skip('should handle watch', async (t) => {

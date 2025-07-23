@@ -44,6 +44,9 @@ class SmbHandle {
     async requestPermission(perm) {
         return this._jsh.requestPermission(perm);
     }
+    async stat() {
+        return this._jsh.stat();
+    }
 }
 exports.SmbHandle = SmbHandle;
 class SmbDirectoryHandle extends SmbHandle {

@@ -18,6 +18,13 @@ export interface JsSmbRemoveOptions {
 export interface JsSmbCreateWritableOptions {
   keepExistingData: boolean
 }
+export interface JsSmbStat {
+  readonly inode?: bigint
+  readonly size: bigint
+  readonly creationTime: bigint
+  readonly modifiedTime: bigint
+  readonly accessedTime: bigint
+}
 export interface JsSmbNotifyChange {
   path: string
   action: string
@@ -38,6 +45,7 @@ export declare class JsSmbHandle {
   isSameEntry(other: JsSmbHandle): boolean
   queryPermission(perm: JsSmbHandlePermissionDescriptor): Promise<string>
   requestPermission(perm: JsSmbHandlePermissionDescriptor): Promise<string>
+  stat(): Promise<JsSmbStat>
 }
 export declare class JsSmbDirectoryHandle {
   [Symbol.asyncIterator]: JsSmbDirectoryHandle['entries']
