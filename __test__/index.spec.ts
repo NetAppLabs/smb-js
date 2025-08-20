@@ -19,7 +19,7 @@
 import test from 'ava'
 
 import process from 'node:process';
-import { SmbDirectoryHandle, SmbFileHandle } from '../indax';
+import { SmbDirectoryHandle, SmbFileHandle } from '../index';
 
 const smbURL = process.env.SMB_URL || 'smb://127.0.0.1/Users/Shared/smb/';
 //const smbPath = process.env.SMB_PATH;

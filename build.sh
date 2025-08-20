@@ -80,32 +80,20 @@ export RUST_BACKTRACE=1
 if [ "$ARG1" == "test" ]; then
   cargo test --release
 else
-  yarn build-tsc
+  # build binary first, so we have the bundle.cjs created
   yarn build-napi --target ${TARGET_TRIPLE}
+  yarn build-tsc
 
-  # amend napi generated index.js a bit so that it plays nicer with esbuild
-  for x in `cat index.js | grep -o "smb-js\..*\.node" | sort | uniq`; do
-    cat index.js | sed "s/join(__dirname, '$x')/new URL('$x', import.meta.url)/g" > index.js~
-    mv index.js{~,}
+  # remove check for universal binary for darwin, as we know we won't have one
+  cat binding.cjs | grep -v "'smb-js.darwin-universal.node'" > binding.cjs~
+  mv binding.cjs{~,}
 
-    cat index.js | sed "s/require('.\/$x')/require(new URL('$x', import.meta.url).pathname)/g" > index.js~
-    mv index.js{~,}
-  done
-
-  # also remove check for universal binary for darwin, as we know we won't have one
-  cat index.js | grep -v "'smb-js.darwin-universal.node'" > index.js~
+  # change ./index.js to require ./binding.cjs instead of just ./binding
+  cat index.js | sed "s/binding\"/binding.cjs\"/" > index.js~
   mv index.js{~,}
 
-  # finally, change way in which things are exported from index.js
-  cat index.js | grep -v 'module.exports.' | sed "s/^const {$/export const {/" > index.js~
-  mv index.js{~,}
-
-  # change indax.js to require index.cjs instead of just index
-  cat indax.js | sed "s/index\"/index.cjs\"/" > indax.js~
-  mv indax.js{~,}
-
+  # rename index
   mv index.js index.cjs
-  mv indax.js indax.cjs
 fi
 
 if [ "${NODE_OS}" == "darwin" ]; then

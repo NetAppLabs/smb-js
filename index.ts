@@ -27,7 +27,7 @@ import {
   JsSmbDirectoryHandle,
   JsSmbFileHandle,
   JsSmbWritableFileStream,
-} from './index';
+} from './binding';
 
 type SmbStat = JsSmbStat;
 type SmbHandlePermissionDescriptor = JsSmbHandlePermissionDescriptor;
