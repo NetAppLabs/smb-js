@@ -50,7 +50,6 @@ class SmbHandle {
 }
 exports.SmbHandle = SmbHandle;
 class SmbDirectoryHandle extends SmbHandle {
-    // @ts-ignore
     [Symbol.asyncIterator] = this.entries;
     _js;
     constructor(param) {
@@ -63,26 +62,22 @@ class SmbDirectoryHandle extends SmbHandle {
         this.getDirectory = this.getDirectoryHandle;
         this.getEntries = this.values;
     }
-    // @ts-ignore
     async *entries() {
         for await (const [key, value] of this._js.entries()) {
             yield [key, value instanceof binding_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value)];
         }
     }
-    // @ts-ignore
     async *keys() {
         for await (const key of this._js.keys()) {
             yield key;
         }
     }
-    // @ts-ignore
     async *values() {
         for await (const value of this._js.values()) {
             yield value instanceof binding_1.JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value);
         }
     }
     async getDirectoryHandle(name, options) {
-        //console.log("getDirectoryHandle: ", name);
         return new Promise(async (resolve, reject) => {
             await this._js.getDirectoryHandle(name, options)
                 .then((handle) => resolve(new SmbDirectoryHandle(handle)))
@@ -147,7 +142,6 @@ class SmbFileHandle extends SmbHandle {
         super(_js.toHandle());
         this._js = _js;
     }
-    // @ts-ignore
     async createSyncAccessHandle() {
         throw Error('createSyncAccessHandle not implemented');
     }

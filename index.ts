@@ -17,36 +17,37 @@
  */
 
 import {
-  JsSmbHandlePermissionDescriptor,
-  JsSmbGetDirectoryOptions,
-  JsSmbGetFileOptions,
-  JsSmbRemoveOptions,
   JsSmbCreateWritableOptions,
-  JsSmbStat,
-  JsSmbHandle,
   JsSmbDirectoryHandle,
   JsSmbFileHandle,
+  JsSmbGetDirectoryOptions,
+  JsSmbGetFileOptions,
+  JsSmbHandle,
+  JsSmbHandlePermissionDescriptor,
+  JsSmbRemoveOptions,
+  JsSmbStat,
   JsSmbWritableFileStream,
 } from './binding';
 
-type SmbStat = JsSmbStat;
-type SmbHandlePermissionDescriptor = JsSmbHandlePermissionDescriptor;
-// @ts-ignore
-type SmbCreateWritableOptions = FileSystemCreateWritableOptions;
-// @ts-ignore
-type FileSystemWritableFileStream = FileSystemWritableFileStream;
-
 type TypedArray = Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
+
+interface WritableStreamDefaultWriterEx extends WritableStreamDefaultWriter {
+  _releaseLock: () => void
+}
+
+interface SmbWritableFileStreamLock { locked: boolean }
 
 export class SmbHandle implements FileSystemHandle {
   private _jsh: JsSmbHandle
   readonly kind: FileSystemHandleKind
   readonly name: string
+
   constructor(_jsh: JsSmbHandle) {
     this._jsh = _jsh;
     this.kind = _jsh.kind;
     this.name = _jsh.name;
   }
+
   isSameEntry(other: FileSystemHandle): Promise<boolean> {
     return new Promise(async (resolve, reject) => {
       try {
@@ -56,22 +57,25 @@ export class SmbHandle implements FileSystemHandle {
       }
     });
   }
-  async queryPermission(perm: SmbHandlePermissionDescriptor): Promise<PermissionState> {
+
+  async queryPermission(perm: JsSmbHandlePermissionDescriptor): Promise<PermissionState> {
     return this._jsh.queryPermission(perm) as Promise<PermissionState>;
   }
-  async requestPermission(perm: SmbHandlePermissionDescriptor): Promise<PermissionState> {
+
+  async requestPermission(perm: JsSmbHandlePermissionDescriptor): Promise<PermissionState> {
     return this._jsh.requestPermission(perm) as Promise<PermissionState>;
   }
-  async stat(): Promise<SmbStat> {
-    return this._jsh.stat() as Promise<SmbStat>;
+
+  async stat(): Promise<JsSmbStat> {
+    return this._jsh.stat();
   }
 }
 
 export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectoryHandle {
-  // @ts-ignore
   [Symbol.asyncIterator]: SmbDirectoryHandle['entries'] = this.entries
   declare readonly kind: 'directory'
   private _js: JsSmbDirectoryHandle
+
   constructor(url: string);
   constructor(toWrap: JsSmbDirectoryHandle);
   constructor(param: string | JsSmbDirectoryHandle) {
@@ -84,31 +88,52 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
     this.getDirectory = this.getDirectoryHandle;
     this.getEntries = this.values;
   }
-  // @ts-ignore
+
   async *entries(): AsyncIterableIterator<[string, FileSystemDirectoryHandle | FileSystemFileHandle]> {
     for await (const [key, value] of this._js.entries()) {
-      yield [key, value instanceof JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) as any as FileSystemDirectoryHandle : new SmbFileHandle(value) as FileSystemFileHandle];
+      yield [key, value instanceof JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value)];
     }
   }
-  // @ts-ignore
+
   async *keys(): AsyncIterableIterator<string> {
     for await (const key of this._js.keys()) {
       yield key;
     }
   }
-  // @ts-ignore
+
   async *values(): AsyncIterableIterator<FileSystemDirectoryHandle | FileSystemFileHandle> {
     for await (const value of this._js.values()) {
-      yield value instanceof JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) as any as FileSystemDirectoryHandle : new SmbFileHandle(value) as FileSystemFileHandle;
+      yield value instanceof JsSmbDirectoryHandle ? new SmbDirectoryHandle(value) : new SmbFileHandle(value);
     }
   }
-  async getDirectoryHandle(name: string, options?: FileSystemGetDirectoryOptions): Promise<FileSystemDirectoryHandle> {
-    //console.log("getDirectoryHandle: ", name);
+
+  async getDirectoryHandle(name: string, options?: JsSmbGetDirectoryOptions): Promise<SmbDirectoryHandle> {
     return new Promise(async (resolve, reject) => {
-      await this._js.getDirectoryHandle(name, options as JsSmbGetDirectoryOptions)
-        .then((handle) => resolve(new SmbDirectoryHandle(handle) as any as FileSystemDirectoryHandle))
+      await this._js.getDirectoryHandle(name, options)
+        .then((handle) => resolve(new SmbDirectoryHandle(handle)))
         .catch((reason) => {
           let errMsg: string = reason.message;
+
+          if (errMsg !== undefined) {
+            if (errMsg == 'The path supplied exists, but was not an entry of requested type.') {
+              reason.name = 'TypeMismatchError';
+            } else if (errMsg.indexOf('not found') != -1 || errMsg.indexOf('ENOENT') != -1) {
+              reason.name = 'NotFoundError';
+            }
+          }
+
+          reject(reason);
+        });
+    });
+  }
+
+  async getFileHandle(name: string, options?: JsSmbGetFileOptions): Promise<SmbFileHandle> {
+    return new Promise(async (resolve, reject) => {
+      await this._js.getFileHandle(name, options)
+        .then((handle) => resolve(new SmbFileHandle(handle)))
+        .catch((reason) => {
+          let errMsg: string = reason.message;
+
           if (errMsg !== undefined) {
             if (errMsg == 'The path supplied exists, but was not an entry of requested type.') {
               reason.name = 'TypeMismatchError';
@@ -120,27 +145,12 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
         });
     });
   }
-  async getFileHandle(name: string, options?: FileSystemGetFileOptions): Promise<FileSystemFileHandle> {
-    return new Promise(async (resolve, reject) => {
-      await this._js.getFileHandle(name, options as JsSmbGetFileOptions)
-        .then((handle) => resolve(new SmbFileHandle(handle) as FileSystemFileHandle))
-        .catch((reason) => {
-          let errMsg: string = reason.message;
-          if (errMsg !== undefined) {
-            if (errMsg == 'The path supplied exists, but was not an entry of requested type.') {
-              reason.name = 'TypeMismatchError';
-            } else if (errMsg.indexOf('not found') != -1 || errMsg.indexOf('ENOENT') != -1) {
-              reason.name = 'NotFoundError';
-            }
-          }
-          reject(reason);
-        });
-    });
+
+  async removeEntry(name: string, options?: JsSmbRemoveOptions): Promise<void> {
+    return this._js.removeEntry(name, options);
   }
-  async removeEntry(name: string, options?: FileSystemRemoveOptions): Promise<void> {
-    return this._js.removeEntry(name, options as JsSmbRemoveOptions);
-  }
-  async resolve(possibleDescendant: FileSystemHandle): Promise<Array<string> | null> {
+
+  async resolve(possibleDescendant: SmbHandle): Promise<Array<string> | null> {
     return this._js.resolve((possibleDescendant as any)._jsh || possibleDescendant);
   }
 
@@ -161,17 +171,17 @@ export class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectory
   watch(callback: (...args: any[]) => any) {
     return this._js.watch(callback)
   }
- }
+}
 
 export class SmbFileHandle extends SmbHandle implements FileSystemFileHandle {
   declare readonly kind: "file";
-  private _js: JsSmbFileHandle
+  private _js: JsSmbFileHandle;
+
   constructor(_js: JsSmbFileHandle) {
     super(_js.toHandle());
     this._js = _js;
   }
 
-  // @ts-ignore
   async createSyncAccessHandle(): Promise<FileSystemSyncAccessHandle> {
     throw Error('createSyncAccessHandle not implemented');
   }
@@ -192,10 +202,11 @@ export class SmbFileHandle extends SmbHandle implements FileSystemFileHandle {
         });
     });
   }
-  async createWritable(options?: SmbCreateWritableOptions): Promise<FileSystemWritableFileStream> {
+
+  async createWritable(options?: JsSmbCreateWritableOptions): Promise<SmbWritableFileStream> {
     return new Promise(async (resolve, reject) => {
-      await this._js.createWritable(options as JsSmbCreateWritableOptions)
-        .then((stream) => resolve(new SmbWritableFileStream(stream) as FileSystemWritableFileStream))
+      await this._js.createWritable(options)
+        .then((stream) => resolve(new SmbWritableFileStream(stream)))
         .catch((reason) => {
           let errMsg: string = reason.message;
           if (errMsg !== undefined) {
@@ -210,14 +221,15 @@ export class SmbFileHandle extends SmbHandle implements FileSystemFileHandle {
   }
 }
 
-interface SmbWritableFileStreamLock { locked: boolean }
 export class SmbWritableFileStream implements SmbWritableFileStreamLock {
   private _js: JsSmbWritableFileStream
   readonly locked: boolean
+
   constructor(_js: JsSmbWritableFileStream) {
     this._js = _js;
     this.locked = _js.locked;
   }
+
   async write(data: ArrayBuffer | TypedArray | DataView | Blob | String | string | {type: 'write' | 'seek' | 'truncate', data?: ArrayBuffer | TypedArray | DataView | Blob | String | string, position?: number, size?: number}): Promise<void> {
     return new Promise(async (resolve, reject) => {
       if (data instanceof Blob) {
@@ -238,15 +250,19 @@ export class SmbWritableFileStream implements SmbWritableFileStreamLock {
       }
     });
   }
+
   async seek(position: number): Promise<void> {
     return this._js.seek(position);
   }
+
   async truncate(size: number): Promise<void> {
     return this._js.truncate(size);
   }
+
   async close(): Promise<void> {
     return this._js.close();
   }
+
   async abort(reason: string): Promise<void> {
     return new Promise(async (resolve, reject) => {
       await this._js.abort(reason)
@@ -254,19 +270,19 @@ export class SmbWritableFileStream implements SmbWritableFileStreamLock {
         .catch((reason) => reject(reason));
     });
   }
+
   getWriter(): WritableStreamDefaultWriter {
     const writer = this._js.getWriter();
+
     (<SmbWritableFileStreamLock>this).locked = true;
     (<WritableStreamDefaultWriterEx>writer)._releaseLock = writer.releaseLock;
+
     writer.releaseLock = () => {
       (<WritableStreamDefaultWriterEx>writer)._releaseLock();
       this._js.releaseLock();
       (<SmbWritableFileStreamLock>this).locked = false;
     };
+
     return writer;
   }
-}
-
-interface WritableStreamDefaultWriterEx extends WritableStreamDefaultWriter {
-  _releaseLock: () => void
 }

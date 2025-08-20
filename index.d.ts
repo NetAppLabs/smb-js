@@ -15,21 +15,20 @@
  *
  * SPDX-License-Identifier: Apache-2.0
  */
-import { JsSmbHandlePermissionDescriptor, JsSmbStat, JsSmbHandle, JsSmbDirectoryHandle, JsSmbFileHandle, JsSmbWritableFileStream } from './binding';
-type SmbStat = JsSmbStat;
-type SmbHandlePermissionDescriptor = JsSmbHandlePermissionDescriptor;
-type SmbCreateWritableOptions = FileSystemCreateWritableOptions;
-type FileSystemWritableFileStream = FileSystemWritableFileStream;
+import { JsSmbCreateWritableOptions, JsSmbDirectoryHandle, JsSmbFileHandle, JsSmbGetDirectoryOptions, JsSmbGetFileOptions, JsSmbHandle, JsSmbHandlePermissionDescriptor, JsSmbRemoveOptions, JsSmbStat, JsSmbWritableFileStream } from './binding';
 type TypedArray = Int8Array | Uint8Array | Uint8ClampedArray | Int16Array | Uint16Array | Int32Array | Uint32Array | Float32Array | Float64Array | BigInt64Array | BigUint64Array;
+interface SmbWritableFileStreamLock {
+    locked: boolean;
+}
 export declare class SmbHandle implements FileSystemHandle {
     private _jsh;
     readonly kind: FileSystemHandleKind;
     readonly name: string;
     constructor(_jsh: JsSmbHandle);
     isSameEntry(other: FileSystemHandle): Promise<boolean>;
-    queryPermission(perm: SmbHandlePermissionDescriptor): Promise<PermissionState>;
-    requestPermission(perm: SmbHandlePermissionDescriptor): Promise<PermissionState>;
-    stat(): Promise<SmbStat>;
+    queryPermission(perm: JsSmbHandlePermissionDescriptor): Promise<PermissionState>;
+    requestPermission(perm: JsSmbHandlePermissionDescriptor): Promise<PermissionState>;
+    stat(): Promise<JsSmbStat>;
 }
 export declare class SmbDirectoryHandle extends SmbHandle implements FileSystemDirectoryHandle {
     [Symbol.asyncIterator]: SmbDirectoryHandle['entries'];
@@ -40,10 +39,10 @@ export declare class SmbDirectoryHandle extends SmbHandle implements FileSystemD
     entries(): AsyncIterableIterator<[string, FileSystemDirectoryHandle | FileSystemFileHandle]>;
     keys(): AsyncIterableIterator<string>;
     values(): AsyncIterableIterator<FileSystemDirectoryHandle | FileSystemFileHandle>;
-    getDirectoryHandle(name: string, options?: FileSystemGetDirectoryOptions): Promise<FileSystemDirectoryHandle>;
-    getFileHandle(name: string, options?: FileSystemGetFileOptions): Promise<FileSystemFileHandle>;
-    removeEntry(name: string, options?: FileSystemRemoveOptions): Promise<void>;
-    resolve(possibleDescendant: FileSystemHandle): Promise<Array<string> | null>;
+    getDirectoryHandle(name: string, options?: JsSmbGetDirectoryOptions): Promise<SmbDirectoryHandle>;
+    getFileHandle(name: string, options?: JsSmbGetFileOptions): Promise<SmbFileHandle>;
+    removeEntry(name: string, options?: JsSmbRemoveOptions): Promise<void>;
+    resolve(possibleDescendant: SmbHandle): Promise<Array<string> | null>;
     /**
      * @deprecated Old property just for Chromium <=85. Use `.getFileHandle()` in the new API.
      */
@@ -64,10 +63,7 @@ export declare class SmbFileHandle extends SmbHandle implements FileSystemFileHa
     constructor(_js: JsSmbFileHandle);
     createSyncAccessHandle(): Promise<FileSystemSyncAccessHandle>;
     getFile(): Promise<File>;
-    createWritable(options?: SmbCreateWritableOptions): Promise<FileSystemWritableFileStream>;
-}
-interface SmbWritableFileStreamLock {
-    locked: boolean;
+    createWritable(options?: JsSmbCreateWritableOptions): Promise<SmbWritableFileStream>;
 }
 export declare class SmbWritableFileStream implements SmbWritableFileStreamLock {
     private _js;
