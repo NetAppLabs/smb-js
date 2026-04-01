@@ -34,6 +34,11 @@ jobs:
             target: x86_64-apple-darwin
             runtests: false
     steps:
+    - name: Harden the runner (Audit all outbound calls)
+      uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+      with:
+        egress-policy: audit
+
     - name: macos deps
       if: runner.os == 'macOS'
       shell: bash
@@ -48,12 +53,12 @@ jobs:
           crossbuild-essential-arm64 crossbuild-essential-amd64 \
           gcc-aarch64-linux-gnu \
           binfmt-support binutils binutils-aarch64-linux-gnu
-    - uses: actions/checkout@v4
-    - uses: actions-rust-lang/setup-rust-toolchain@v1
+    - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+    - uses: actions-rust-lang/setup-rust-toolchain@150fca883cd4034361b621bd4e6a9d34e5143606 # v1.15.4
       with:
         rustflags: ""
     - name: Use Node.js
-      uses: actions/setup-node@v4
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
       with:
         node-version: 20.x
         cache: 'yarn'
@@ -67,7 +72,7 @@ jobs:
       if: ${{ matrix.settings.runtests }}
       run: yarn test
     - name: Upload node module
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
         name: smb-js-node-${{ matrix.settings.host }}-${{ matrix.settings.target }}
         path: |
@@ -81,9 +86,14 @@ jobs:
       packages: write
     needs: build
     steps:
-      - uses: actions/checkout@v4
+      - name: Harden the runner (Audit all outbound calls)
+        uses: step-security/harden-runner@fa2e9d605c4eeb9fcad4c99c224cee0c6c7f3594 # v2.16.0
+        with:
+          egress-policy: audit
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Use Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20.x
           cache: 'yarn'
@@ -91,7 +101,7 @@ jobs:
           scope: '@netapplabs'
   
       - name: Download Artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
           pattern: smb-js-node-*
           merge-multiple: true
